@@ -1,0 +1,63 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <script src="../base1/jquery.js"></script>
+    <script src="../base1/cockpit.js"></script>
+    <script src="dimm.js"></script>
+    <link href="../base1/patternfly.css" type="text/css" rel="stylesheet">
+
+</head>
+
+<body ng-app="dimm" ng-controller="myCtrl">
+    <div id="server" class="container-fluid page-ct">
+        <div class="info-table-ct-container">
+            <table class="info-table-ct">
+                <tr>
+                    <td><b>Summary<b></td></tr>
+                <tr>
+                    <td >Installed Capacity: </td>
+                    <td>{{installed}}</td>
+                </tr>
+                <tr>
+                    <td style="padding-right: 2cm;">Maximum Capacity:  </td>
+                    <td>{{maxcap}}</td>
+                </tr>
+                <tr>
+                    <td >Slots Availabile: </td>
+                    <td>{{avail}} </td>
+                </tr>
+                <tr>
+                    <td >Slots Used: </td>
+                    <td>{{slots}}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+  <p/>
+  <div id="Individual-Memory">
+
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <span style="font-size:large;font-weight:bold;"> Individual Memory </span>
+    </div>
+        <table class="table table-hover">
+          <thead>
+             <th ng-repeat="item in header">{{item}}</th>
+          </thead>
+          <tr ng-repeat="el in memory">
+             <td>{{el.locator}}</td>
+             <td>{{el.type_detail}}</td>
+             <td>{{el.speed}}</td>
+             <td>{{el.type}}</td>
+             <td>{{el.size}}</td>
+             <td ng-if="el.health_state">{{el.health_state}}</td>
+             <td ng-if="el.temp">{{el.temp}}</td>
+             <td ng-if="el.life">{{el.life}}</td>
+          </tr>
+        </table>
+     </div>
+  </div>
+
+</body>
+</html>
