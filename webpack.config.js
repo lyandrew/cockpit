@@ -18,6 +18,9 @@ var info = {
         "docker/console": [
             "docker/console.js",
         ],
+        "hardware/dimm": [
+            "hardware/main.js",
+        ],
 
         "kdump/kdump": [
             "kdump/kdump.js",
@@ -194,6 +197,9 @@ var info = {
         "docker/console.html",
         "docker/index.html",
         "docker/images/drive-harddisk-symbolic.svg",
+
+        "hardware/dimm.html",
+        "hardware/manifest.json",
 
         "kdump/index.html",
 
