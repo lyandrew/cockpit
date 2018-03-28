@@ -190,3 +190,21 @@ export function udev_info(address) {
     }
     return pr;
 }
+
+var dmide_info_promises = { };
+
+export function dmide_info(address) {
+    var pr = dmide_info_promises[address];
+    var dfd;
+
+    if (!pr) {
+        dfd = cockpit.defer();
+        dmide_info_promises[address] = pr = dfd.promise();
+
+        cockpit.spawn(["/usr/sbin/dmidecode", "-t", "17"], { err: "message" })
+            .done(output => dfd.resolve(output))
+            .fail(exception => dfd.reject(exception.message));
+    }
+    console.log(pr);
+    return pr;
+}
