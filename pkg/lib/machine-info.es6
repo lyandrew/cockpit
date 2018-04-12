@@ -228,7 +228,6 @@ export function memory_info(address) {
         memory_info_promises[address] = pr = dfd.promise();
         var memory_device = "17";
         cockpit.spawn(["/usr/sbin/dmidecode", "-t", memory_device], { err: "message" })
-//          cockpit.spawn(["cat", "/tmp/dmid"], { err: "message" })
             .done(output => dfd.resolve(parseMemoryInfo(output)))
             .fail(exception => dfd.reject(exception.message));
     }
