@@ -87,10 +87,10 @@ class HardwareInfo extends React.Component {
             );
         }
 
-        if (this.props.info.dmi.dimms && this.props.info.dmi.dimms.length > 0) {
+        if (this.props.info.dmi.length > 0) {
           dmi = (
               <Listing title={ _("Memory") } columnTitles={ [ _("ID"), _("Description"), _("Vendor"), _("Model"), _("Size"), _("Clock Speed"), _("Serial") ] } >
-                  { this.props.info.dmi.dimms.map(dimm => <ListingRow columns={[ dimm.locator, dimm.type_detail, dimm.vendor, dimm.part_number, dimm.size, dimm.speed, dimm.serial ]} />) }
+                  { this.props.info.dmi.map(dimm => <ListingRow columns={[ dimm.locator, dimm.type_detail, dimm.manufacturer, dimm.part_number, dimm.size, dimm.speed, dimm.serial ]} />) }
               </Listing>
           );
 
