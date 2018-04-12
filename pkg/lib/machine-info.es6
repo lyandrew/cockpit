@@ -191,20 +191,46 @@ export function udev_info(address) {
     return pr;
 }
 
-var dmide_info_promises = { };
+const memoryRE = /^(\w+[ \w+]*):\s(.*)/;
 
-export function dmide_info(address) {
-    var pr = dmide_info_promises[address];
+function parseMemoryInfo(text) {
+    var info = {};
+    text.split("\n\n").map(paragraph => {
+        let locator = null;
+        let props = {};
+
+        paragraph = paragraph.trim();
+        if (!paragraph)
+            return;
+
+        paragraph.split("\n").map(line => {
+            line = line.trim();
+            let match = line.match(memoryRE);
+            if (match)
+              props[match[1]] = match[2];
+        });
+
+        locator = props["Locator"];
+        if (locator)
+            info[locator] = props;
+    });
+    return info;
+}
+
+var memory_info_promises = { };
+
+export function memory_info(address) {
+    var pr = memory_info_promises[address];
     var dfd;
 
     if (!pr) {
         dfd = cockpit.defer();
-        dmide_info_promises[address] = pr = dfd.promise();
-
-        cockpit.spawn(["/usr/sbin/dmidecode", "-t", "17"], { err: "message" })
-            .done(output => dfd.resolve(output))
+        memory_info_promises[address] = pr = dfd.promise();
+        var memory_device = "17";
+        cockpit.spawn(["/usr/sbin/dmidecode", "-t", memory_device], { err: "message" })
+//          cockpit.spawn(["cat", "/tmp/dmid"], { err: "message" })
+            .done(output => dfd.resolve(parseMemoryInfo(output)))
             .fail(exception => dfd.reject(exception.message));
     }
-    console.log(pr);
     return pr;
 }

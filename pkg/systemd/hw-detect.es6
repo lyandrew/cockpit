@@ -54,49 +54,22 @@ function findPCI(udevdb, info) {
     }
 }
 
-// Parse and add to info.dmi.dimm = [{"speed":"11 MHz","locator":"A3", ...}]
-function processDMIDE(res, info) {
-  var dimms = [];
-  var data = res.split("\n\n");
-  for (var i = 1; i < data.length - 1; i++) {
-      if (data[i].length == 0) {
-        continue;
-      }
-      var dict = {};
-      var speed = data[i].substring(data[i].indexOf("Speed: "), data[i].indexOf("Manufacturer") - 1);
-      var dimm_type = data[i].substring(data[i].indexOf("Type: "), data[i].indexOf("Type Detail:") - 1);
-      var size = data[i].substring(data[i].indexOf("Size: "), data[i].indexOf("Form Factor") - 1);
-      var type_detail = data[i].substring(data[i].indexOf("Type Detail: "), data[i].indexOf("Speed: ") - 1);
-      var locator = data[i].substring(data[i].indexOf("Locator: "), data[i].indexOf("Bank Locator:") - 1);
-      var serial = data[i].substring(data[i].indexOf("Serial Number: "), data[i].indexOf("Asset Tag: ") - 1);
-      var vendor = data[i].substring(data[i].indexOf("Manufacturer: "), data[i].indexOf("Serial Number: ") - 1);
-      var part_number = data[i].substring(data[i].indexOf("Part Number: "), data[i].indexOf("Rank: ") - 1);
-      if (speed.includes("Unknown") == true || speed == "") {
-          dict["locator"] = locator.split(":")[1].trim();
-          dict["size"] = "";
-          dict["type"] = "";
-          dict["type_detail"] = "[empty]";
-          dict["serial"] = "";
-          dict["speed"] = "";
-          dict["part_number"] = "";
-          dict["vendor"] = "";
-      } else {
-          dict["speed"] = speed.split(":")[1].trim();
-          dict["locator"] = locator.split(":")[1].trim();
-          dict["size"] = size.split(":")[1].trim();
-          dict["type"] = dimm_type.split(":")[1].trim();
-          dict["type_detail"] = dict["type"] + " " + type_detail.split(":")[1].trim();
-          dict["serial"] = serial.split(":")[1].trim();
-          dict["part_number"] = part_number.split(":")[1].trim();
-          dict["vendor"] = vendor.split(":")[1].trim();
-      }
-      dimms.push(dict);
-  }
-  info.dmi.dimms = dimms;
+//Add to info.dmi.dimm = [{"speed":"11 MHz","locator":"A3", ...}]
+function processMemory(memory, info) {
+    for (let dimm in memory) {
+        let props = memory[dimm];
+        info.dmi.push({ locator: props["Locator"],
+                        manufacturer: props["Manufacturer"],
+                        type_detail: props["Type Detail"],
+                        size: props["Size"],
+                        speed: props["Speed"],
+                        part_number: props["Part Number"],
+                        serial: props["Serial Number"] });
+    }
 }
 
 export default function detect() {
-    let info = { system: {}, pci: [], dmi: {} };
+    let info = { system: {}, pci: [], dmi: [] };
     var tasks = [];
 
     tasks.push(new Promise((resolve, reject) => {
@@ -131,9 +104,9 @@ export default function detect() {
     }));
 
     tasks.push(new Promise((resolve, reject) => {
-        machine_info.dmide_info()
+        machine_info.memory_info()
             .done(result => {
-                processDMIDE(result, info);
+                processMemory(result, info);
                 resolve();
             })
             .catch(error => {
