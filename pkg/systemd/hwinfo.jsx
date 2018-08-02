@@ -73,7 +73,7 @@ class HardwareInfo extends React.Component {
 
     render() {
         let pci = null;
-        let dmi = null;
+        let memory = null;
 
         if (this.props.info.pci.length > 0) {
             let sortedPci = this.props.info.pci.concat();
@@ -87,12 +87,14 @@ class HardwareInfo extends React.Component {
             );
         }
 
-        if (this.props.info.dmi.length > 0) {
-          dmi = (
-              <Listing title={ _("Memory") } columnTitles={ [ _("ID"), _("Description"), _("Vendor"), _("Model"), _("Size"), _("Clock Speed"), _("Serial") ] } >
-                  { this.props.info.dmi.map(dimm => <ListingRow columns={[ dimm.locator, dimm.type_detail, dimm.manufacturer, dimm.part_number, dimm.size, dimm.speed, dimm.serial ]} />) }
-              </Listing>
-          );
+        if (this.props.info.memory.length > 0) {
+            memory = (
+                <Listing title={ _("Memory") }
+                columnTitles={ [ _("ID"), _("Description"), _("Vendor"), _("Model"), _("Size"), _("Clock Speed"), _("Serial") ] } >
+                    { this.props.info.memory.map(dimm => <ListingRow
+                      columns={[ dimm.locator, dimm.type_detail, dimm.manufacturer, dimm.part_number, dimm.size, dimm.speed, dimm.serial ]} />) }
+                </Listing>
+            );
         }
 
         return (
@@ -103,12 +105,11 @@ class HardwareInfo extends React.Component {
                 </ol>
 
                 <h2>{ _("System Information") }</h2>
-                <SystemInfo info={this.props.info.system}/>
+                <SystemInfo info={this.props.info.system} />
 
-                { dmi }
+                { memory }
                 { pci }
             </div>
-
         );
     }
 }

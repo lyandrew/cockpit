@@ -54,22 +54,22 @@ function findPCI(udevdb, info) {
     }
 }
 
-//Add to info.dmi.dimm = [{"speed":"11 MHz","locator":"A3", ...}]
+// Add to info.memory.dimm = [{"speed":"11 MHz","locator":"A3", ...}]
 function processMemory(memory, info) {
     for (let dimm in memory) {
         let props = memory[dimm];
-        info.dmi.push({ locator: props["Locator"],
-                        manufacturer: props["Manufacturer"],
-                        type_detail: props["Type Detail"],
-                        size: props["Size"],
-                        speed: props["Speed"],
-                        part_number: props["Part Number"],
-                        serial: props["Serial Number"] });
+        info.memory.push({ locator: props["Locator"],
+                           manufacturer: props["Manufacturer"],
+                           type_detail: props["Type Detail"],
+                           size: props["Size"],
+                           speed: props["Speed"],
+                           part_number: props["Part Number"],
+                           serial: props["Serial Number"] });
     }
 }
 
 export default function detect() {
-    let info = { system: {}, pci: [], dmi: [] };
+    let info = { system: {}, pci: [], memory: [] };
     var tasks = [];
 
     tasks.push(new Promise((resolve, reject) => {
@@ -105,14 +105,14 @@ export default function detect() {
 
     tasks.push(new Promise((resolve, reject) => {
         machine_info.memory_info()
-            .done(result => {
-                processMemory(result, info);
-                resolve();
-            })
-            .catch(error => {
-                console.warn("Failed to get dmidecode information:", error.toString());
-                resolve();
-            });
+                .done(result => {
+                    processMemory(result, info);
+                    resolve();
+                })
+                .catch(error => {
+                    console.warn("Failed to get dmidecode information:", error.toString());
+                    resolve();
+                });
     }));
 
     // return info after all task promises got done

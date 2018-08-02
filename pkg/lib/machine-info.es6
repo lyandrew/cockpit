@@ -191,7 +191,7 @@ export function udev_info(address) {
     return pr;
 }
 
-const memoryRE = /^(\w+[ \w+]*):\s(.*)/;
+const memoryRE = /^([ \w]+): (.*)/;
 
 function parseMemoryInfo(text) {
     var info = {};
@@ -207,7 +207,7 @@ function parseMemoryInfo(text) {
             line = line.trim();
             let match = line.match(memoryRE);
             if (match)
-              props[match[1]] = match[2];
+                props[match[1]] = match[2];
         });
 
         locator = props["Locator"];
@@ -226,10 +226,9 @@ export function memory_info(address) {
     if (!pr) {
         dfd = cockpit.defer();
         memory_info_promises[address] = pr = dfd.promise();
-        var memory_device = "17";
-        cockpit.spawn(["/usr/sbin/dmidecode", "-t", memory_device], { err: "message" })
-            .done(output => dfd.resolve(parseMemoryInfo(output)))
-            .fail(exception => dfd.reject(exception.message));
+        cockpit.spawn(["/usr/sbin/dmidecode", "-t", "memory"], { environ: ["LC_ALL=C"], err: "message", superuser: "try" })
+                .done(output => dfd.resolve(parseMemoryInfo(output)))
+                .fail(exception => dfd.reject(exception.message));
     }
     return pr;
 }
