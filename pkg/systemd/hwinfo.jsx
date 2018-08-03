@@ -80,20 +80,24 @@ class HardwareInfo extends React.Component {
             sortedPci.sort((a, b) => a[this.state.sortBy].localeCompare(b[this.state.sortBy]));
 
             pci = (
-                <Listing title={ _("PCI") } columnTitles={ [ _("Class"), _("Model"), _("Vendor"), _("Slot") ] }
-                         columnTitleClick={ index => this.setState({ sortBy: this.sortColumnFields[index] }) } >
-                    { sortedPci.map(dev => <ListingRow columns={[ dev.cls, dev.model, dev.vendor, dev.slot ]} />) }
-                </Listing>
+                <div id="pci_table">
+                    <Listing title={ _("PCI") } columnTitles={ [ _("Class"), _("Model"), _("Vendor"), _("Slot") ] }
+                             columnTitleClick={ index => this.setState({ sortBy: this.sortColumnFields[index] }) } >
+                        { sortedPci.map(dev => <ListingRow columns={[ dev.cls, dev.model, dev.vendor, dev.slot ]} />) }
+                    </Listing>
+                </div>
             );
         }
 
         if (this.props.info.memory.length > 0) {
             memory = (
-                <Listing title={ _("Memory") }
-                columnTitles={ [ _("ID"), _("Description"), _("Vendor"), _("Model"), _("Size"), _("Clock Speed"), _("Serial") ] } >
-                    { this.props.info.memory.map(dimm => <ListingRow
-                      columns={[ dimm.locator, dimm.type_detail, dimm.manufacturer, dimm.part_number, dimm.size, dimm.speed, dimm.serial ]} />) }
-                </Listing>
+                <div id="memory_table">
+                    <Listing title={ _("Memory") }
+                             columnTitles={ [ _("ID"), _("Description"), _("Vendor"), _("Model"), _("Size"), _("Clock Speed"), _("Serial") ] } >
+                        { this.props.info.memory.map(dimm => <ListingRow
+                            columns={[ dimm.locator, dimm.type_detail, dimm.manufacturer, dimm.part_number, dimm.size, dimm.speed, dimm.serial ]} />) }
+                    </Listing>
+                </div>
             );
         }
 
