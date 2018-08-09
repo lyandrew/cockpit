@@ -214,11 +214,29 @@ function parseMemoryInfo(text) {
         if (locator)
             info[locator] = props;
     });
-    return info;
+
+    return processMemory(info);
+}
+
+function processMemory(info) {
+    var memory_array = [];
+    for (let dimm in info) {
+        let memory = info[dimm];
+        memory_array.push({ locator: memory["Locator"],
+                            manufacturer: memory["Manufacturer"],
+                            type_detail: memory["Type Detail"],
+                            size: memory["Size"],
+                            speed: memory["Speed"],
+                            part_number: memory["Part Number"],
+                            serial: memory["Serial Number"] });
+    }
+    return memory_array;
 }
 
 var memory_info_promises = { };
 
+// Calls dmidecode to gather memory information. Returns an list of memory object.
+// [{"locator":"DIMM A","manufacturer":...},{"locator":"DIMM B",...},...]
 export function memory_info(address) {
     var pr = memory_info_promises[address];
     var dfd;
