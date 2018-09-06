@@ -250,3 +250,40 @@ export function memory_info(address) {
     }
     return pr;
 }
+
+function processDisks(text) {
+    var text1 = [[{'system_id': '47N007A', 'block_size': 512, 'id': '9480A012F92A', 'name': 'Disk 0 TOSHIBA AL13SXB300N     '}, {'system_id': '47N007A', 'block_size': 512, 'id': '94E0A069F92A', 'name': 'Disk 1 TOSHIBA AL13SXB300N     '}, {'system_id': '47N007A', 'block_size': 512, 'id': '94E0A05LF92A', 'name': 'Disk 2 TOSHIBA AL13SXB300N     '}, {'system_id': '47N007A', 'block_size': 512, 'id': '9430A0BAF92A', 'name': 'Disk 3 TOSHIBA AL13SXB300N     '}], {'47N007A:DG0': {'pool_member': '9480A012F92A 94E0A069F92A 94E0A05LF92A\r\n 9430A0BAF92A', 'total_space': 898319253504, 'free_space': 0, 'id': '47N007A:DG0', 'name': 'RAID5 Disk Group 0'}}];
+    // var text1 = [[{'pool_member': [0, 2, ['DISK_ID_00003', 'DISK_ID_00004']], 'total_space': 4398046511104, 'id': 'POOL_ID_00004', 'name': 'lsm_test_aggr', 'free_space': 4398046511104}, {'pool_member': [22, 3, ['POOL_ID_00001']], 'total_space': 549755813888, 'id': 'POOL_ID_00002', 'name': 'Pool 2(sub pool of Pool 1)', 'free_space': 549755813888}, {'pool_member': [1, 2, ['DISK_ID_00009', 'DISK_ID_00010']], 'total_space': 549755813888, 'id': 'POOL_ID_00003', 'name': 'Pool 3', 'free_space': 549755813888}, {'pool_member': [1, 2, ['DISK_ID_00001', 'DISK_ID_00002']], 'total_space': 2199023255552, 'id': 'POOL_ID_00001', 'name': 'Pool 1', 'free_space': 1649267441664}}, {'POOL_ID_00004': {'pool_member': [0, 2, ['DISK_ID_00003', 'DISK_ID_00004']], 'total_space': 4398046511104, 'free_space': 4398046511104, 'id': 'POOL_ID_00004', 'name': 'lsm_test_aggr'}, 'POOL_ID_00002': {'pool_member': [22, 3, ['POOL_ID_00001']], 'total_space': 549755813888, 'free_space': 549755813888, 'id': 'POOL_ID_00002', 'name': 'Pool 2(sub pool of Pool 1)'}, 'POOL_ID_00003': {'pool_member': [1, 2, ['DISK_ID_00009', 'DISK_ID_00010']], 'total_space': 549755813888, 'free_space': 549755813888, 'id': 'POOL_ID_00003', 'name': 'Pool 3'}, 'POOL_ID_00001': {'pool_member': [1, 2, ['DISK_ID_00001', 'DISK_ID_00002']], 'total_space': 2199023255552, 'free_space': 1649267441664, 'id': 'POOL_ID_00001', 'name': 'Pool 1'}}];
+    var disks = text1[0];
+    // pool = text[1]
+    var disks_arr = [];
+    console.log(text1[0][0]['name']);
+    for (let i in disks) {
+        disks_arr.push(disks[i]);
+    }
+    var raids = text1[1];
+    var raid_arr = [];
+    for (let i in raids) {
+        raid_arr.push(raids[i]);
+    }
+    console.log('returning proccess disks');
+    var res = [];
+    res.push(disks_arr);
+    res.push(raid_arr);
+    console.log(res);
+    return res;
+}
+
+var disk_info_promises = {};
+export function disk_info(address) {
+    var pr = disk_info_promises[address];
+    var dfd;
+    if (!pr) {
+        dfd = cockpit.defer();
+        disk_info_promises[address] = pr = dfd.promise();
+        cockpit.spawn(["cisks.sh"], { environ: ["LC_ALL=C"], err: "message", superuser: "try" })
+                .done(output => dfd.resolve(processDisks(output)))
+                .fail(exception => dfd.reject(exception.message));
+    }
+    return pr;
+}

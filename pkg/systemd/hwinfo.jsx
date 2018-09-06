@@ -74,7 +74,35 @@ class HardwareInfo extends React.Component {
     render() {
         let pci = null;
         let memory = null;
+        let disks = null;
+        let raids = null;
+        console.log('at hwinfo');
+        console.log(this.props.info.disk);
 
+        if (this.props.info.raid.length > 0) {
+            raids = (
+                <div id="raid_table">
+                    <Listing title={ _("RAIDS") } columnTitles={ [ _("ID"), _("Name"), _("Free Space"), _("Total Space"), _("Pool Members") ] }
+                             columnTitleClick={ index => this.setState({ sortBy: this.sortColumnFields[index] }) } >
+                        { this.props.info.raid.map(raid => <ListingRow columns={[ raid.id, raid.name, raid.free_space, raid.total_space, raid.pool_member ]} />) }
+                    </Listing>
+                </div>
+            );
+        }
+
+        if (this.props.info.disk.length > 0) {
+            disks = (
+                <div id="disks_table">
+                    <Listing title={ _("DISKS") } columnTitles={ [ _("ID"), _("Name"), _("System ID") ] }
+                             columnTitleClick={ index => this.setState({ sortBy: this.sortColumnFields[index] }) } >
+                        { this.props.info.disk.map(disk => <ListingRow columns={[ disk.id, disk.name, disk.system_id ]} />) }
+                    </Listing>
+                </div>
+            );
+        }
+        console.log("at render");
+        console.log(this.props.info.disk.length);
+        console.log(this.props.info.raid);
         if (this.props.info.pci.length > 0) {
             let sortedPci = this.props.info.pci.concat();
             sortedPci.sort((a, b) => a[this.state.sortBy].localeCompare(b[this.state.sortBy]));
@@ -111,6 +139,8 @@ class HardwareInfo extends React.Component {
                 <h2>{ _("System Information") }</h2>
                 <SystemInfo info={this.props.info.system} />
 
+                { raids }
+                { disks }
                 { memory }
                 { pci }
             </div>
