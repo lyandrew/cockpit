@@ -20,9 +20,9 @@ import React from 'react';
 import cockpit from 'cockpit';
 
 import DialogPattern from 'cockpit-components-dialog.jsx';
-import Select from "cockpit-components-select.jsx";
+import * as Select from "cockpit-components-select.jsx";
 
-import { mouseClick, units, convertToUnit, digitFilter, toFixedPrecision } from '../helpers.es6';
+import { mouseClick, units, convertToUnit, digitFilter, toFixedPrecision, logDebug } from '../helpers.es6';
 import { volumeCreateAndAttach, attachDisk, getVm, getStoragePools } from '../actions/provider-actions.es6';
 
 import './diskAdd.css';
@@ -46,14 +46,23 @@ function getAvailableTargets(vm) {
     return targets;
 }
 
-const SelectExistingVolume = ({ idPrefix, dialogValues, onValueChanged, vmStoragePools, vmDisks }) => {
-    const vmStoragePool = vmStoragePools[dialogValues.storagePoolName];
-
-    const usedDiskPaths = Object.getOwnPropertyNames(vmDisks)
-            .filter(target => vmDisks[target].source && vmDisks[target].source.file)
-            .map(target => vmDisks[target].source.file);
+function getFilteredVolumes(vmStoragePool, disks) {
+    const usedDiskPaths = Object.getOwnPropertyNames(disks)
+            .filter(target => disks[target].source && disks[target].source.file)
+            .map(target => disks[target].source.file);
 
     const filteredVolumes = vmStoragePool.filter(volume => !usedDiskPaths.includes(volume.path));
+
+    const filteredVolumesSorted = filteredVolumes.sort(function(a, b) {
+        return a.name.localeCompare(b.name);
+    });
+
+    return filteredVolumesSorted;
+}
+
+const SelectExistingVolume = ({ idPrefix, dialogValues, onValueChanged, vmStoragePools, vmDisks }) => {
+    const vmStoragePool = vmStoragePools[dialogValues.storagePoolName];
+    const filteredVolumes = getFilteredVolumes(vmStoragePool, vmDisks);
 
     let initiallySelected;
     let content;
@@ -132,7 +141,7 @@ const VolumeName = ({ idPrefix, dialogValues, onValueChanged }) => {
                        type="text"
                        minLength={1}
                        placeholder={_("New Volume Name")}
-                       value={dialogValues.volumeName}
+                       value={dialogValues.volumeName || ""}
                        onChange={e => onValueChanged('volumeName', e.target.value)} />
 
             </div>
@@ -274,7 +283,7 @@ class AddDisk extends React.Component {
 
         const availableTargets = getAvailableTargets(vm);
         this.state = {
-            storagePoolName: storagePools && storagePools[vm.connectionName] && Object.getOwnPropertyNames(storagePools[vm.connectionName])[0],
+            storagePoolName: storagePools && storagePools[vm.connectionName] && Object.getOwnPropertyNames(storagePools[vm.connectionName]).sort()[0],
             mode: CREATE_NEW,
             volumeName: undefined,
             existingVolumeName: undefined,
@@ -296,7 +305,9 @@ class AddDisk extends React.Component {
     getDefaultVolumeName(poolName) {
         const { storagePools, vm } = this.props;
         const vmStoragePools = storagePools[vm.connectionName];
-        return vmStoragePools && vmStoragePools[poolName] && vmStoragePools[poolName][0] && vmStoragePools[poolName][0].name;
+        const vmStoragePool = vmStoragePools[poolName];
+        const filteredVolumes = getFilteredVolumes(vmStoragePool, vm.disks);
+        return filteredVolumes[0] && filteredVolumes[0].name;
     }
 
     onValueChanged(key, value) {
@@ -304,6 +315,11 @@ class AddDisk extends React.Component {
 
         if (key === 'storagePoolName' && this.state.mode === USE_EXISTING) { // user changed pool
             stateDelta.existingVolumeName = this.getDefaultVolumeName(value);
+        }
+
+        if (key === 'mode' && value === USE_EXISTING) { // user moved to USE_EXISTING subtab
+            const poolName = this.state.storagePoolName;
+            stateDelta.existingVolumeName = this.getDefaultVolumeName(poolName);
         }
 
         this.setState(stateDelta);
@@ -317,14 +333,40 @@ class AddDisk extends React.Component {
 
         return (
             <div className='modal-body add-disk-dialog'>
-                <ul className="nav nav-tabs nav-tabs-pf">
-                    <li key='one' className={this.state.mode === CREATE_NEW && "active"}>
-                        <a href="#" onClick={() => this.onValueChanged('mode', CREATE_NEW)}>{_("Create New")}</a>
-                    </li>
-                    <li key='two' className={this.state.mode === USE_EXISTING && "active"}>
-                        <a href="#" onClick={() => this.onValueChanged('mode', USE_EXISTING)}>{_("Use Existing")}</a>
-                    </li>
-                </ul>
+                <div className="container-fluid">
+                    <div className="row">
+                        <div className="col-sm-1 dialog-field add-disk-source-label">
+                            <label className="control-label" htmlFor={`${idPrefix}-source`}>
+                                {_("Source")}
+                            </label>
+                        </div>
+                        <div className="col-sm-11 dialog-field add-disk-source" id={`${idPrefix}-source`}>
+                            <div key='one' className="col-sm-3 add-disk-select-source">
+                                <input id={`${idPrefix}-createnew`}
+                                       type="radio"
+                                       name="source"
+                                       checked={this.state.mode === CREATE_NEW}
+                                       onChange={e => this.onValueChanged('mode', CREATE_NEW)}
+                                       className={this.state.mode === CREATE_NEW ? "active" : ''} />
+                                <label className="control-label" htmlFor={`${idPrefix}-createnew`}>
+                                    {_("Create New")}
+                                </label>
+                            </div>
+
+                            <div key='two' className="col-sm-3 add-disk-select-source">
+                                <input id={`${idPrefix}-useexisting`}
+                                       type="radio"
+                                       name="source"
+                                       checked={this.state.mode === USE_EXISTING}
+                                       onChange={e => this.onValueChanged('mode', USE_EXISTING)}
+                                       className={this.state.mode === USE_EXISTING ? "active" : ''} />
+                                <label className="control-label" htmlFor={`${idPrefix}-useexisting`}>
+                                    {_("Use Existing")}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 {this.state.mode === CREATE_NEW && (
                     <CreateNewDisk idPrefix={`${idPrefix}-new`}
                                    onValueChanged={this.onValueChanged}
@@ -349,7 +391,7 @@ class AddDisk extends React.Component {
 function getDiskFileName(storagePools, vm, poolName, volumeName) {
     const vmStoragePools = storagePools[vm.connectionName];
     let volume;
-    if (vmStoragePools && vmStoragePools[poolName] && vmStoragePools[poolName]) {
+    if (vmStoragePools && vmStoragePools[poolName]) {
         volume = vmStoragePools[poolName].find(volume => volume.name === volumeName);
     }
     return volume && volume.path;
@@ -392,23 +434,26 @@ const addDiskDialog = (dispatch, provider, idPrefix, vm, storagePools) => {
                                                     target: dialogState.target,
                                                     permanent: dialogState.permanent,
                                                     hotplug: dialogState.hotplug,
-                                                    vmName: vm.name }))
+                                                    vmName: vm.name,
+                                                    vmId: vm.id }))
                     .fail(exc => dialogError(_("Disk failed to be created with following error: ") + exc.message))
                     .then(() => { // force reload of VM data, events are not reliable (i.e. for a down VM)
-                        return dispatch(getVm(vm.connectionName, vm.name));
+                        return dispatch(getVm({connectionName: vm.connectionName, name: vm.name, id: vm.id}));
                     });
         }
 
         // use existing volume
+        logDebug("dialogState: %s", JSON.stringify(dialogState));
         return dispatch(attachDisk({ connectionName: vm.connectionName,
                                      diskFileName: getDiskFileName(storagePools, vm, dialogState.storagePoolName, dialogState.existingVolumeName),
                                      target: dialogState.target,
                                      permanent: dialogState.permanent,
                                      hotplug: dialogState.hotplug,
-                                     vmName: vm.name }))
+                                     vmName: vm.name,
+                                     vmId: vm.id }))
                 .fail(exc => dialogError(_("Disk failed to be attached with following error: ") + exc.message))
                 .then(() => { // force reload of VM data, events are not reliable (i.e. for a down VM)
-                    return dispatch(getVm(vm.connectionName, vm.name));
+                    return dispatch(getVm({connectionName: vm.connectionName, name: vm.name, id: vm.id}));
                 });
     };
 

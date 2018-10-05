@@ -945,7 +945,7 @@ class VirtMachine(Machine):
     memory_mb = None
     cpus = None
 
-    def __init__(self, image, networking=None, maintain=False, memory_mb=None, cpus=None, **args):
+    def __init__(self, image, networking=None, maintain=False, memory_mb=None, cpus=None, graphics=False, **args):
         self.maintain = maintain
 
         # Currently all images are run on x86_64. When that changes we will have
@@ -954,6 +954,7 @@ class VirtMachine(Machine):
 
         self.memory_mb = memory_mb or VirtMachine.memory_mb or MEMORY_MB
         self.cpus = cpus or VirtMachine.cpus or 1
+        self.graphics = graphics or "windows" in image
 
         # Set up some temporary networking info if necessary
         if networking is None:
@@ -1052,10 +1053,12 @@ class VirtMachine(Machine):
         # No need or use for redir network on windows
         if "windows" in self.image:
             keys["disk"] = "ide"
-            keys["console"] = TEST_GRAPHICS_XML.format(**keys)
             keys["redir"] = ""
         else:
             keys["disk"] = "virtio"
+        if self.graphics:
+            keys["console"] = TEST_GRAPHICS_XML.format(**keys)
+        else:
             keys["console"] = TEST_CONSOLE_XML.format(**keys)
         if "windows-10" in self.image:
             keys["loader"] = "<loader readonly='yes' type='pflash'>/usr/share/edk2/ovmf/OVMF_CODE.fd</loader>"
@@ -1140,7 +1143,7 @@ class VirtMachine(Machine):
             image_file = os.path.join(BOTS_DIR, "images", image)
         if not os.path.exists(image_file):
             try:
-                subprocess.check_call([ "image-download", image_file ])
+                subprocess.check_call([ os.path.join(BOTS_DIR, "image-download"), image_file ])
             except OSError as ex:
                 if ex.errno != errno.ENOENT:
                     raise

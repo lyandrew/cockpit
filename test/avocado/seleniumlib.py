@@ -55,30 +55,27 @@ class SeleniumTest(Test):
     :avocado: disable
     """
     def setUp(self):
-        if not (os.environ.has_key("HUB") or os.environ.has_key("BROWSER")):
-            @Retry(attempts = 3, timeout = 30,
-                   exceptions = (WebDriverException,),
-                   error = Exception('Timeout: Unable to attach firefox driver'))
-            def connectfirefox():
-                self.driver = selenium.webdriver.Firefox()
-            connectfirefox()
-            guest_machine = 'localhost'
-        else:
-            selenium_hub = os.environ["HUB"] if os.environ.has_key("HUB") else "localhost"
-            browser = os.environ["BROWSER"] if os.environ.has_key("BROWSER") else "firefox"
-            if browser == "explorer":
-                browser = "internet explorer"
-            elif browser == 'edge':
-                browser = 'MicrosoftEdge'
-            guest_machine = os.environ["GUEST"]
-            @Retry(attempts = 3, timeout = 30,
-                   exceptions = (WebDriverException,),
-                   error = Exception('Timeout: Unable to attach remote Browser on hub'))
-            def connectbrowser():
-                self.driver = selenium.webdriver.Remote(command_executor='http://%s:4444/wd/hub' % selenium_hub, desired_capabilities={'browserName': browser})
-            connectbrowser()
+        selenium_hub = os.environ["HUB"] if os.environ.has_key("HUB") else "localhost"
+        browser = os.environ["BROWSER"] if os.environ.has_key("BROWSER") else "firefox"
+        if browser == 'edge':
+            browser = 'MicrosoftEdge'
+        guest_machine = os.environ["GUEST"]
+        @Retry(attempts = 3, timeout = 30,
+               exceptions = (WebDriverException,),
+               error = Exception('Timeout: Unable to attach remote Browser on hub'))
+        def connectbrowser():
+            self.driver = selenium.webdriver.Remote(command_executor='http://%s:4444/wd/hub' % selenium_hub, desired_capabilities={'browserName': browser})
+        connectbrowser()
         self.driver.set_window_size(1400, 1200)
-        self.driver.set_page_load_timeout(90)
+        try:
+            self.driver.set_page_load_timeout(90)
+        except WebDriverException as e:
+            # HACK: this fails with python2-selenium < 3.9 and firefox:3 (https://bugzilla.redhat.com/show_bug.cgi?id=1629909)
+            if browser == 'firefox':
+                self.log.error("set_page_load_timeout() failed (known issue with firefox): " + str(e))
+            else:
+                raise
+
         # self.default_try is number of repeats for finding element
         self.default_try = 40
         # stored search function for each element to be able to refresh element in case of detached from DOM
@@ -122,13 +119,16 @@ class SeleniumTest(Test):
                 self.log.info('ERR: Unable to close WEBdriver: {0}'.format(e))
 
     def get_debug_logs(self, logs=['browser','driver','client','server']):
-        max_line_log_count = 10
-        for log in logs:
-            receivedlog = [x for x in self.driver.get_log(log)][-max_line_log_count:]
-            if receivedlog:
-                self.log.info(">>>>> " + log)
-                for line in receivedlog:
-                    self.log.info("      {0}".format(line))
+        try:
+            max_line_log_count = 10
+            for log in logs:
+                receivedlog = [x for x in self.driver.get_log(log)][-max_line_log_count:]
+                if receivedlog:
+                    self.log.info(">>>>> " + log)
+                    for line in receivedlog:
+                        self.log.info("      {0}".format(line))
+        except WebDriverException as e:
+            self.log.info("ERR: Unable to get logs: " + e.msg)
 
     def everything_loaded(self, element):
         """

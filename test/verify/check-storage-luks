@@ -45,15 +45,19 @@ class TestStorage(StorageCase):
 
         # Format it with luks
         self.content_row_action(1, "Create Partition")
-        self.dialog({ "size": 10,
-                      "type": "luks+ext4",
-                      "name": "ENCRYPTED",
-                      "passphrase": "vainu-reku-toma-rolle-kaja",
-                      "passphrase2": "vainu-reku-toma-rolle-kaja",
-                      "store_passphrase": True,
-                      "mounting": "custom",
-                      "mount_point": mount_point_secret,
-                      "crypto_extra_options": CheckBoxText("crypto,options") })
+        self.dialog_wait_open()
+        self.dialog_set_val("size", 10)
+        self.dialog_set_val("type", "luks+ext4")
+        self.dialog_set_val("name", "ENCRYPTED")
+        self.dialog_set_val("passphrase", "vainu-reku-toma-rolle-kaja")
+        self.dialog_set_val("passphrase2", "vainu-reku-toma-rolle-kaja")
+        if not self.storaged_is_old_udisks:
+            self.dialog_set_val("store_passphrase", True)
+            self.dialog_set_val("mounting", "custom")
+            self.dialog_set_val("mount_point", mount_point_secret)
+            self.dialog_set_val("crypto_extra_options", CheckBoxText("crypto,options"))
+        self.dialog_apply()
+        self.dialog_wait_close()
         self.content_row_wait_in_col(1, 1, "Encrypted data")
         self.content_row_wait_in_col(2, 1, "ext4 File System")
 
@@ -79,7 +83,7 @@ class TestStorage(StorageCase):
             # up with crypttab and we see the old options.
             self.dialog_with_retry(trigger = lambda: self.content_tab_info_action(1, 2, "Options"),
                                    expect = { "crypto_extra_options": "crypto,options" },
-                                   values = { "crypto_extra_options": "weird,options" })
+                                   values = { "crypto_extra_options": CheckBoxText("weird,options") })
 
             assert m.execute("grep 'weird,options' /etc/crypttab") != ""
             self.wait_in_storaged_configuration("weird,options")
@@ -125,14 +129,11 @@ class TestStorage(StorageCase):
         assert m.execute("grep %s /etc/fstab || true" % mount_point_secret) == ""
 
     @skipImage("No clevis/tang",
-               "centos-7", "rhel-7-5-distropkg", "rhel-7-6",
+               "rhel-7-5", "rhel-7-5-distropkg",
                "debian-stable", "debian-testing", "ubuntu-1604", "ubuntu-stable")
     def testClevisTang(self):
         m = self.machine
         b = self.browser
-
-        # HACK - clevis in rhel devel is too old
-        can_unlock = m.image not in [ "rhel-x" ]
 
         # We generate the keys and cache explicitly before starting
         # the socket.  This allows us to control their names, which
@@ -201,11 +202,10 @@ class TestStorage(StorageCase):
         b.wait_present(panel + ".table tr:nth-child(2)")
         b.wait_in_text(panel + ".table tr:nth-child(2)", "127.0.0.1")
 
-        if can_unlock:
-            # Unlock it.  This should succeed without prompting.
-            #
-            self.content_head_action(1, "Unlock")
-            self.content_row_wait_in_col(2, 1, "ext4 File System")
+        # Unlock it.  This should succeed without prompting.
+        #
+        self.content_head_action(1, "Unlock")
+        self.content_row_wait_in_col(2, 1, "ext4 File System")
 
         # Edit the key, without providing an existing passphrase
         #
@@ -228,12 +228,14 @@ class TestStorage(StorageCase):
         b.wait_not_present(panel + ".table tr:nth-child(2)")
 
     @skipImage("No clevis/tang",
-               "centos-7", "rhel-7-5-distropkg", "rhel-7-6",
+               "rhel-7-5", "rhel-7-5-distropkg",
                "debian-stable", "debian-testing", "ubuntu-1604", "ubuntu-stable")
     def testSlots(self):
         self.allow_journal_messages("Device is not initialized.*")
         m = self.machine
         b = self.browser
+
+        luks_2 = m.image in [ "rhel-x" ]
 
         self.login_and_go("/storage")
 
@@ -253,6 +255,7 @@ class TestStorage(StorageCase):
         # add one more passphrase
         tab = self.content_tab_expand(1, 1)
         panel = tab + " .panel:contains(Keys) "
+        b.wait_present(panel)
         b.click(panel + ".fa-plus")
         self.dialog_wait_open()
         self.dialog_wait_apply_enabled()
@@ -277,7 +280,7 @@ class TestStorage(StorageCase):
         # delete second key slot by providing passphrase
         b.click(panel + "tr:nth-child(2) .fa-minus")
         self.dialog_wait_open()
-        b.set_val(self.dialog_field("passphrase") + " input[type=password]", "vainu-reku-toma-rolle-kaja-1")
+        b.set_input_text(self.dialog_field("passphrase") + " input[type=password]", "vainu-reku-toma-rolle-kaja-1")
         self.dialog_apply()
         self.dialog_wait_close()
         # check that it is not possible to unlock with deleted passphrase
@@ -291,7 +294,7 @@ class TestStorage(StorageCase):
         b.wait_in_text(".dialog-error", "Error unlocking /dev/sda: Failed to activate device: Operation not permitted")
         self.dialog_cancel()
 
-        # add more passphrases, seven exactly, to reach the limit of eight
+        # add more passphrases, seven exactly, to reach the limit of eight for LUKSv1
         for i in range(1,8):
             b.click(panel + ".fa-plus")
             self.dialog_wait_open()
@@ -303,16 +306,18 @@ class TestStorage(StorageCase):
             self.dialog_apply()
             self.dialog_wait_close()
 
-        # check if add button is inactive
-        b.wait_present(panel + ".disabled")
-        # check if edit button is inactive
-        slots_table = tab + " .panel table "
-        b.wait_present(slots_table + ".disabled")
+        if not luks_2:
+            # check if add button is inactive
+            b.wait_present(panel + ".disabled")
+            # check if edit button is inactive
+            slots_table = tab + " .panel table "
+            b.wait_present(slots_table + ".disabled")
+
         # remove one slot
         slots_table = tab + " .panel table "
         b.wait_present(slots_table + "tbody tr:last-child .fa-minus")
         b.click(slots_table + "tbody tr:last-child .fa-minus")
-        b.set_val(self.dialog_field("passphrase") + " input[type=password]", "vainu-reku-toma-rolle-kaja-7")
+        b.set_input_text(self.dialog_field("passphrase") + " input[type=password]", "vainu-reku-toma-rolle-kaja-7")
         self.dialog_apply()
         self.dialog_wait_close()
         # check if buttons have become enabled after removing last slot

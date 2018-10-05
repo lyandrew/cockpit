@@ -29,6 +29,7 @@ import {
     CREATE_AND_ATTACH_VOLUME,
     CREATE_VM,
     DELETE_VM,
+    DETACH_DISK,
     ENABLE_LIBVIRT,
     FORCEOFF_VM,
     FORCEREBOOT_VM,
@@ -59,8 +60,8 @@ import {
  *  The naming convention for action creator names is: <verb><Noun>
  *  with the present tense.
  */
-export function attachDisk({ connectionName, diskFileName, target, permanent, hotplug, vmName }) {
-    return virt(ATTACH_DISK, { connectionName, diskFileName, target, permanent, hotplug, vmName });
+export function attachDisk({ connectionName, diskFileName, target, permanent, hotplug, vmName, vmId }) {
+    return virt(ATTACH_DISK, { connectionName, diskFileName, target, permanent, hotplug, vmName, vmId });
 }
 
 export function changeNetworkState(vm, networkMac, state) {
@@ -77,6 +78,10 @@ export function createVm(vmParams) {
 
 export function deleteVm(vm, options) {
     return virt(DELETE_VM, { name: vm.name, id: vm.id, connectionName: vm.connectionName, options: options });
+}
+
+export function detachDisk({ connectionName, target, name, id, live = false }) {
+    return virt(DETACH_DISK, { connectionName, target, name, id, live });
 }
 
 export function enableLibvirt(enable, serviceName) {
@@ -116,10 +121,11 @@ export function getStorageVolumes(connectionName, poolName) {
     return virt(GET_STORAGE_VOLUMES, { connectionName, poolName });
 }
 
-export function getVm(connectionName, lookupId) {
+export function getVm({connectionName, name, id}) {
     return virt(GET_VM, {
-        lookupId, // provider-specific (i.e. libvirt uses vm_name)
         connectionName,
+        name,
+        id
     });
 }
 
@@ -177,8 +183,8 @@ export function vmDesktopConsole(vm, consoleDetail) {
     return virt(CONSOLE_VM, { name: vm.name, id: vm.id, connectionName: vm.connectionName, consoleDetail });
 }
 
-export function volumeCreateAndAttach({ connectionName, poolName, volumeName, size, format, target, permanent, hotplug, vmName }) {
-    return virt(CREATE_AND_ATTACH_VOLUME, { connectionName, poolName, volumeName, size, format, target, permanent, hotplug, vmName });
+export function volumeCreateAndAttach({ connectionName, poolName, volumeName, size, format, target, permanent, hotplug, vmName, vmId }) {
+    return virt(CREATE_AND_ATTACH_VOLUME, { connectionName, poolName, volumeName, size, format, target, permanent, hotplug, vmName, vmId });
 }
 
 /**

@@ -773,8 +773,6 @@ append_header (GString *string,
     return HEADER_DNS_PREFETCH_CONTROL;
   if (g_ascii_strcasecmp ("Referrer-Policy", name) == 0)
     return HEADER_REFERRER_POLICY;
-  else if (g_ascii_strcasecmp ("Content-Length", name) == 0)
-    g_critical ("Don't set Content-Length manually. This is a programmer error.");
   else if (g_ascii_strcasecmp ("Connection", name) == 0)
     g_critical ("Don't set Connection header manually. This is a programmer error.");
   return 0;
@@ -1301,8 +1299,8 @@ web_response_file (CockpitWebResponse *response,
   g_return_if_fail (escaped != NULL);
 
   /* Someone is trying to escape the root directory, or access hidden files? */
-  unescaped = g_uri_unescape_string (escaped, NULL);
-  if (strstr (unescaped, "/.") || strstr (unescaped, "../") || strstr (unescaped, "//"))
+  unescaped = g_uri_unescape_string (escaped, "/");
+  if (!unescaped || strstr (unescaped, "/.") || strstr (unescaped, "../") || strstr (unescaped, "//"))
     {
       g_debug ("%s: invalid path request", escaped);
       cockpit_web_response_error (response, 404, NULL, "Not Found");

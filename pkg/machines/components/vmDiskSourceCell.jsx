@@ -16,7 +16,8 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { PropTypes } from 'react';
+import React from 'react';
+import PropTypes from 'prop-types';
 import cockpit from 'cockpit';
 
 import InfoRecord from './infoRecord.jsx';
@@ -27,7 +28,8 @@ const DiskSourceCell = ({ diskSource, idPrefix }) => {
     const addOptional = (chunks, value, descr) => {
         if (value) {
             chunks.push(<InfoRecord descrClass='machines-disks-source-descr' descr={descr}
-                                    valueClass='machines-disks-source-value' value={value} />);
+                                    valueClass='machines-disks-source-value' value={value}
+                                    key={descr} />);
         }
     };
 
@@ -42,7 +44,9 @@ const DiskSourceCell = ({ diskSource, idPrefix }) => {
 
     return (
         <table className='machines-disks-source' id={`${idPrefix}-source`}>
-            {chunks}
+            <tbody>
+                {chunks}
+            </tbody>
         </table>
     );
 };

@@ -16,7 +16,8 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { PropTypes } from 'react';
+import React from 'react';
+import PropTypes from 'prop-types';
 import cockpit from 'cockpit';
 
 import { vmId } from '../helpers.es6';
@@ -98,13 +99,20 @@ class VmDisksTabLibvirt extends React.Component {
                 .map(target => this.prepareDiskData(vm.disks[target],
                                                     vm.disksStats && vm.disksStats[target],
                                                     `${idPrefix}-${target}`));
+        let actions = [];
+
+        if (config.provider.name != 'oVirt')
+            actions = [<AddDiskAction dispatch={dispatch} provider={config.provider} idPrefix={idPrefix} key='add-disk' vm={vm} storagePools={storagePools} />];
 
         return (
             <VmDisksTab idPrefix={idPrefix}
-                actions={[<AddDiskAction dispatch={dispatch} provider={config.provider} idPrefix={idPrefix} vm={vm} storagePools={storagePools} />]}
+                actions={actions}
+                vm={vm}
                 disks={disks}
                 renderCapacity={areDiskStatsSupported}
-                notificationText={this.getNotification(vm, areDiskStatsSupported)} />
+                notificationText={this.getNotification(vm, areDiskStatsSupported)}
+                dispatch={dispatch}
+                provider={config.provider.name} />
         );
     }
 }

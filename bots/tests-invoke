@@ -308,8 +308,12 @@ class PullTask(object):
         # Split a value like verify/fedora-atomic
         (prefix, unused, value) = self.context.partition("/")
 
-        if prefix in [ 'selenium', 'avocado', 'container' ]:
-            image = 'fedora-27'
+        if prefix in [ 'container', 'selenium', 'avocado' ]:
+            image = 'fedora-28'
+        elif prefix == 'cockpit':
+            (image, _, scenario) = value.partition('/')
+            if scenario:
+                os.environ["TEST_SCENARIO"] = scenario
         else:
             image = value
         os.environ["TEST_OS"] = image
@@ -333,7 +337,7 @@ class PullTask(object):
             cmd = [ "timeout", "60m", os.path.join(test, "avocado", "run-tests"),
                     "--quick", "--tests" ]
         elif prefix == "selenium":
-            if value not in ['firefox', 'chrome', 'explorer', 'edge']:
+            if value not in ['firefox', 'chrome', 'edge']:
                 ret = "Unknown browser for selenium test"
             cmd = [ "timeout", "60m", os.path.join(test, "avocado", "run-tests"),
                     "--quick", "--selenium-tests", "--browser", value]
@@ -345,14 +349,6 @@ class PullTask(object):
         else:
             ret = "Unknown context"
 
-
-        env = os.environ.copy()
-        env["PATH"] = "{0}:{1}:{2}".format(env.get("PATH", "/bin:/sbin"), BOTS, test)
-
-        # Setup network if necessary, any failures caught during testing
-        prep = os.path.join(BASE, "test", "vm-prep")
-        if os.path.exists(prep):
-            subprocess.call(["sudo", "-n", prep ], env=env)
 
         # Prepare the image to run
         if not ret and prefix != "cockpit":
@@ -366,7 +362,7 @@ class PullTask(object):
         if not ret:
             if opts.verbose:
                 cmd.append("--verbose")
-            ret = subprocess.call(cmd, env=env)
+            ret = subprocess.call(cmd)
 
         # All done
         if self.sink:

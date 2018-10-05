@@ -1,5 +1,4 @@
 import cockpit from 'cockpit';
-import $ from 'jquery';
 import service from '../lib/service.js';
 import createVmScript from 'raw!./scripts/create_machine.sh';
 import installVmScript from 'raw!./scripts/install_machine.sh';
@@ -123,8 +122,32 @@ function getBootableDeviceType(device) {
     return type;
 }
 
+export function getDiskElemByTarget(domxml, targetOriginal) {
+    const domainElem = getDomainElem(domxml);
+
+    if (!domainElem) {
+        console.warn(`Can't parse dumpxml, input: "${domainElem}"`);
+        return;
+    }
+
+    const devicesElem = domainElem.getElementsByTagName('devices')[0];
+    const diskElems = devicesElem.getElementsByTagName('disk');
+
+    if (diskElems) {
+        for (let i = 0; i < diskElems.length; i++) {
+            const diskElem = diskElems[i];
+            const targetElem = diskElem.getElementsByTagName('target')[0];
+            const target = targetElem.getAttribute('dev'); // identifier of the disk, i.e. sda, hdc
+            if (target === targetOriginal) {
+                return new XMLSerializer().serializeToString(diskElem);
+            }
+        }
+    }
+}
+
 export function getDomainElem(domXml) {
-    const xmlDoc = $.parseXML(domXml);
+    let parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(domXml, "application/xml");
 
     if (!xmlDoc) {
         console.warn(`Can't parse dumpxml, input: "${domXml}"`);
@@ -509,6 +532,8 @@ export function unknownConnectionName(action, libvirtServiceName) {
 
 export function updateVCPUSettings(domXml, count, max, sockets, cores, threads) {
     const domainElem = getDomainElem(domXml);
+    if (!domainElem)
+        throw new Error("updateVCPUSettings: domXML has no domain element");
 
     let cpuElem = domainElem.getElementsByTagName("cpu")[0];
     if (!cpuElem) {

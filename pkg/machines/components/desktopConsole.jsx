@@ -192,22 +192,25 @@ const ManualConnection = ({ displays, idPrefix }) => {
     return (
         <td className='machines-desktop-main-col'>
             <h2>{_("Manual Connection")}</h2>
-            <p className='machines-desktop-manual-block'>{msg}</p>
-            <p className='machines-desktop-manual-block'>
+            <div className='machines-desktop-manual-block'>{msg}</div>
+            <div className='machines-desktop-manual-block'>
                 <ManualConnectionDetails displays={displays} idPrefix={idPrefix} />
-            </p>
+            </div>
         </td>
     );
 };
 
-const DesktopConsoleDownload = ({ vm, onDesktopConsole, config }) => {
+const DesktopConsoleDownload = ({ children, vm, onDesktopConsole, config }) => {
     return (
         <div>
+            {children}
             <table className='machines-desktop-main'>
-                <tr>
-                    <ConnectWithRemoteViewer config={config} vm={vm} onDesktopConsole={onDesktopConsole} />
-                    <ManualConnection displays={vm.displays} idPrefix={`${vmId(vm.name)}-consoles-manual`} />
-                </tr>
+                <tbody>
+                    <tr>
+                        <ConnectWithRemoteViewer config={config} vm={vm} onDesktopConsole={onDesktopConsole} />
+                        <ManualConnection displays={vm.displays} idPrefix={`${vmId(vm.name)}-consoles-manual`} />
+                    </tr>
+                </tbody>
             </table>
         </div>
     );

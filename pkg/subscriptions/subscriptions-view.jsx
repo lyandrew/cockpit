@@ -17,26 +17,29 @@
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
 
+var React = require("react");
+var createReactClass = require('create-react-class');
+
 var cockpit = require("cockpit");
 var _ = cockpit.gettext;
-
-var React = require("react");
 
 var cockpitListing = require("cockpit-components-listing.jsx");
 
 // Show details for an installed product
-var SubscriptionProductDetails = React.createClass({
+var SubscriptionProductDetails = createReactClass({
     render: function() {
         return (
-            <div key={this.props.productId}>
-                <tr><td className="form-tr-ct-title">{_("Product name")}</td><td><span>{this.props.productName}</span></td></tr>
-                <tr><td className="form-tr-ct-title">{_("Product ID")}</td><td><span>{this.props.productId}</span></td></tr>
-                <tr><td className="form-tr-ct-title">{_("Version")}</td><td><span>{this.props.version}</span></td></tr>
-                <tr><td className="form-tr-ct-title">{_("Architecture")}</td><td><span>{this.props.arch}</span></td></tr>
-                <tr><td className="form-tr-ct-title">{_("Status")}</td><td><span>{this.props.status}</span></td></tr>
-                <tr><td className="form-tr-ct-title">{_("Starts")}</td><td><span>{this.props.starts}</span></td></tr>
-                <tr><td className="form-tr-ct-title">{_("Ends")}</td><td><span>{this.props.ends}</span></td></tr>
-            </div>
+            <table key={this.props.productId}>
+                <tbody>
+                    <tr><td className="form-tr-ct-title">{_("Product name")}</td><td><span>{this.props.productName}</span></td></tr>
+                    <tr><td className="form-tr-ct-title">{_("Product ID")}</td><td><span>{this.props.productId}</span></td></tr>
+                    <tr><td className="form-tr-ct-title">{_("Version")}</td><td><span>{this.props.version}</span></td></tr>
+                    <tr><td className="form-tr-ct-title">{_("Architecture")}</td><td><span>{this.props.arch}</span></td></tr>
+                    <tr><td className="form-tr-ct-title">{_("Status")}</td><td><span>{this.props.status}</span></td></tr>
+                    <tr><td className="form-tr-ct-title">{_("Starts")}</td><td><span>{this.props.starts}</span></td></tr>
+                    <tr><td className="form-tr-ct-title">{_("Ends")}</td><td><span>{this.props.ends}</span></td></tr>
+                </tbody>
+            </table>
         );
     }
 });
@@ -47,7 +50,7 @@ var SubscriptionProductDetails = React.createClass({
  *   - 'waiting' - display spinner
  *   - 'error'   - display error icon
  */
-var Curtains = React.createClass({
+var Curtains = createReactClass({
     render: function() {
         var description = null;
         if (this.props.description)
@@ -80,7 +83,7 @@ var Curtains = React.createClass({
 /* Component to show a dismissable error, message as child text
  * dismissError callback function triggered when the close button is pressed
  */
-var DismissableError = React.createClass({
+var DismissableError = createReactClass({
     handleDismissError: function(e) {
         // only consider primary mouse button
         if (!e || e.button !== 0)
@@ -110,7 +113,7 @@ var DismissableError = React.createClass({
  * register     callback, triggered when user clicks on register
  * unregister   callback, triggered when user clicks on unregister
  */
-var SubscriptionStatus = React.createClass({
+var SubscriptionStatus = createReactClass({
     handleRegisterSystem: function(e) {
         // only consider primary mouse button
         if (!e || e.button !== 0)
@@ -177,7 +180,7 @@ var SubscriptionStatus = React.createClass({
  * register     callback, triggered when user clicks on register
  * unregister   callback, triggered when user clicks on unregister
  */
-var SubscriptionsPage = React.createClass({
+var SubscriptionsPage = createReactClass({
     renderCurtains: function() {
         var icon;
         var description;
@@ -212,7 +215,7 @@ var SubscriptionsPage = React.createClass({
                 },
             ];
             var columns = [ { name: itm.productName, 'header': true } ];
-            return <cockpitListing.ListingRow columns={columns} tabRenderers={tabRenderers} />;
+            return <cockpitListing.ListingRow key={itm.productId} columns={columns} tabRenderers={tabRenderers} />;
         });
 
         return (

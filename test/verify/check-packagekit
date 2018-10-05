@@ -37,7 +37,6 @@ done
 """
 
 @skipImage("Image uses OSTree", "continuous-atomic", "fedora-atomic", "rhel-atomic")
-@skipImage("https://bugzilla.redhat.com/show_bug.cgi?id=1600452", "rhel-x")
 class TestUpdates(PackageCase):
     def setUp(self):
         PackageCase.setUp(self)
@@ -230,6 +229,7 @@ class TestUpdates(PackageCase):
             self.assertEqual(b.attr("#system_information_updates_icon", "class"), "")
 
     @skipImage("Ubuntu 16.04 PackageKit does not support changelogs", "ubuntu-1604")
+    @skipImage("https://bugzilla.redhat.com/show_bug.cgi?id=1624852", "rhel-x")
     def testInfoSecurity(self):
         b = self.browser
         m = self.machine
@@ -427,6 +427,7 @@ class TestUpdates(PackageCase):
         self.allow_restart_journal_messages()
 
     @skipImage("Ubuntu 16.04 PackageKit does not support changelogs", "ubuntu-1604")
+    @skipImage("https://bugzilla.redhat.com/show_bug.cgi?id=1624852", "rhel-x")
     def testSecurityOnly(self):
         b = self.browser
         m = self.machine
@@ -469,6 +470,7 @@ class TestUpdates(PackageCase):
             self.check_nth_update(2, "secnocve", "1-2", "security", desc_matches=["Fix leak"])
 
     @skipImage("Ubuntu 16.04 PackageKit does not support changelogs", "ubuntu-1604")
+    @skipImage("https://bugzilla.redhat.com/show_bug.cgi?id=1624852", "rhel-x")
     def testInfoTruncation(self):
         b = self.browser
         m = self.machine
@@ -668,8 +670,7 @@ class TestUpdates(PackageCase):
 
 
 @skipImage("Image uses OSTree", "continuous-atomic", "fedora-atomic", "rhel-atomic")
-@skipImage("No subscriptions", "centos-7", "debian-stable", "debian-testing", "fedora-27", "fedora-28", "fedora-i386", "fedora-testing", "ubuntu-1604", "ubuntu-stable")
-@skipImage("https://bugzilla.redhat.com/show_bug.cgi?id=1600452", "rhel-x")
+@skipImage("No subscriptions", "centos-7", "debian-stable", "debian-testing", "fedora-28", "fedora-29", "fedora-i386", "fedora-testing", "ubuntu-1604", "ubuntu-stable")
 class TestUpdatesSubscriptions(PackageCase):
     provision = {
         "0": { "address": "10.111.113.2/20", "dns": "10.111.113.2" },
@@ -697,6 +698,7 @@ class TestUpdatesSubscriptions(PackageCase):
         self.candlepin.download("/root/candlepin/generated_certs/88888.pem", product_file)
 
         # # upload product info to the test machine
+        m.execute("mkdir -p /etc/pki/product")
         m.upload([product_file], "/etc/pki/product")
 
         # make sure that rhsm skips certificate checks for the server
@@ -751,6 +753,7 @@ class TestUpdatesSubscriptions(PackageCase):
             b.wait_text("#system_information_updates_text", "System Up To Date")
             self.assertEqual(b.attr("#system_information_updates_icon", "class"), "")
 
+    @skipImage("HACK: subscription-manager cockpit needs to be installed and fixed on rhel-x", "rhel-x")
     def testAvailableUpdates(self):
         m = self.machine
         b = self.browser
@@ -818,7 +821,6 @@ class TestUpdatesSubscriptions(PackageCase):
 
 
 @skipImage("Image uses OSTree", "continuous-atomic", "fedora-atomic", "rhel-atomic")
-@skipImage("https://bugzilla.redhat.com/show_bug.cgi?id=1600452", "rhel-x")
 class TestAutoUpdates(PackageCase):
     def setUp(self):
         PackageCase.setUp(self)
@@ -1034,20 +1036,70 @@ class TestAutoUpdates(PackageCase):
 
         m.start_cockpit()
         b.login_and_go("/updates")
-
-        # automatic upgrades are not visible
         b.wait_present("#available")
-        self.assertFalse(b.is_present("#automatic"))
+        if self.backend == 'dnf':
+            b.wait_present('#automatic')
+            b.wait_in_text('#automatic div.btn-onoff-ct > .btn.active > span', 'Off')
+        else:
+            # on-demand installation isn't supported, switch to enable it isn't visible
+            self.assertFalse(b.is_present("#automatic"))
 
         # apply updates
-        b.click("#app .container-fluid button")
+        b.click("#app .container-fluid button.pk-update--all")
 
         # empty state visible in main area
-        b.wait_present(".container-fluid div.blank-slate-pf")
+        b.wait_present(".container-fluid div.blank-slate-pf button.btn-default")
+        b.click('.container-fluid div.blank-slate-pf button.btn-default')
         self.assertFalse(b.is_present("#available"))
-        # automatic updates are not visible
-        self.assertFalse(b.is_present("#automatic"))
+        if self.backend == 'dnf':
+            b.is_present('#automatic')
+        else:
+            # on-demand installation isn't supported
+            self.assertFalse(b.is_present('#automatic'))
 
+    @skipImage("No supported auto update backend", "centos-7", "debian-stable", "debian-testing", "ubuntu-1604",
+               "ubuntu-stable", "rhel-7-5", "rhel-7-5-distropkg", "rhel-7-6", "rhel-7-6-distropkg")
+    def testInstall(self):
+        b = self.browser
+        m = self.machine
+
+        m.execute('dnf remove -y dnf-automatic')
+
+        # provide minimal content in order for the backend to be seen as supported
+        timerContent = '''
+[Unit]
+Description=dnf-automatic timer
+# See comment in dnf-makecache.service
+ConditionPathExists=!/run/ostree-booted
+
+[Timer]
+OnBootSec=1h
+OnUnitInactiveSec=1d
+
+[Install]
+WantedBy=basic.target
+        '''
+        self.createPackage('dnf-automatic', '1', '1', content = {
+            '/etc/dnf/automatic.conf': '',
+            '/usr/lib/systemd/system/dnf-automatic.timer': timerContent,
+            '/usr/lib/systemd/system/dnf-automatic-install.timer': timerContent
+        });
+        self.enableRepo()
+
+        m.start_cockpit()
+        b.login_and_go('/updates')
+
+        # click through install dialog
+        b.wait_present('#automatic div.btn-onoff-ct > .btn.active')
+        b.click('#automatic div.btn-onoff-ct > .btn.active > span')
+        b.wait_popup('dialog')
+        b.wait_visible('#dialog button.apply')
+        b.wait_not_attr('#dialog button.apply', 'disabled', '')
+        b.click('#dialog button.apply')
+
+        # as dnf-automatic isn't actually installed DnfImpl.setConfig will fail,
+        # but we can check that the backend is now enabled
+        b.wait_in_text('#automatic div.btn-onoff-ct > .btn.active > span', 'On')
 
 if __name__ == '__main__':
     test_main()

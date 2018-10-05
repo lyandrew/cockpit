@@ -225,9 +225,14 @@ class Browser:
     def focus(self, selector):
         self.call_js_func('ph_focus', selector)
 
+    def blur(self, selector):
+        self.call_js_func('ph_blur', selector)
+
     def key_press(self, keys):
         for k in keys:
-            if k.isalnum():
+            if k == "Backspace":
+                self.cdp.invoke("Input.dispatchKeyEvent", type="keyDown", windowsVirtualKeyCode=8)
+            elif k.isalnum():
                 self.cdp.invoke("Input.dispatchKeyEvent", type="char", text=k, key=k)
             else:
                 self.cdp.invoke("Input.dispatchKeyEvent", type="char", text=k)
@@ -235,7 +240,13 @@ class Browser:
     def set_input_text(self, selector, val):
         self.set_val(selector, "")
         self.focus(selector)
-        self.key_press(val)
+        if val == "":
+            # We need some real action for React to emit change signals
+            self.key_press([ " ", "Backspace" ])
+        else:
+            self.key_press(val)
+        self.wait_val(selector, val)
+        self.blur(selector)
 
     def wait_timeout(self, timeout):
         browser = self
@@ -816,14 +827,26 @@ class MachineCase(unittest.TestCase):
             self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { module_request }.*')
             self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { getattr } for .* comm="which" path="/usr/sbin/setfiles".*')
 
+        if self.image in ['fedora-29']:
+            self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { getattr } for .* comm="which" path="/usr/sbin/setfiles".*')
+            # HACK: https://bugzilla.redhat.com/show_bug.cgi?id=1608030
+            self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { create } for .* comm="ebtables".*firewalld_t.*')
+            # HACK: https://bugzilla.redhat.com/show_bug.cgi?id=1571377
+            self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { .* } for .* path="/dev/random" .*')
+            self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { read } for .* name="random" .*')
+
         if self.image == 'rhel-x':
             # HACK: https://bugzilla.redhat.com/show_bug.cgi?id=1559820
             # this affects every boot (so naughty override causes too much spamming)
             self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { create } for  pid=1 comm="systemd" name="bpf".*')
             # HACK: https://bugzilla.redhat.com/show_bug.cgi?id=1573501
             self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { create } for .*comm="nft" .*firewalld_t.*')
-            # HACK: https://bugzilla.redhat.com/show_bug.cgi?id=1600452
-            self.allowed_messages.append('org.freedesktop.PackageKit:.*Timeout was reached')
+            # HACK: https://bugzilla.redhat.com/show_bug.cgi?id=1571377
+            self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { .* } for .* path="/dev/random" .*')
+            self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { read } for .* name="random" .*')
+            # HACK: https://bugzilla.redhat.com/show_bug.cgi?id=1629588
+            self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { read } for .* comm="agetty" name="motd".*')
+            self.allowed_messages.append('audit: type=1400 audit(.*): avc:  denied  { read } for .* comm="sshd" name="motd".*')
 
         # these images don't have tuned; keep in sync with bots/images/scripts/debian.setup
         if self.image in ["ubuntu-1604", "debian-stable"]:

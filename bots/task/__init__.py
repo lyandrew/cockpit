@@ -220,8 +220,8 @@ def finish(publishing, ret, name, context, issue):
             "data": { "title": issue["title"], "body": checklist.body }
         } ]
 
-        # Close the issue if it's not a pull request, successful, and only one task to do
-        if "pull_request" not in issue and not ret and len(checklist.items) == 1:
+        # Close the issue if it's not a pull request, successful, and all tasks done
+        if "pull_request" not in issue and not ret and len(checklist.items) == len(checklist.checked()):
             requests[0]["data"]["state"] = "closed"
 
         # Comment if there was a failure
@@ -298,16 +298,20 @@ def stale(days, pathspec, ref="HEAD"):
 
     return timestamp < due
 
-def issue(title, body, name, context=None, state="open", since=None):
-    item = "{0} {1}".format(name, context or "").strip()
+def issue(title, body, item, context=None, items=[], state="open", since=None):
+    if context:
+        item = "{0} {1}".format(item, context).strip()
 
     for issue in api.issues(state=state, since=since):
         checklist = github.Checklist(issue["body"])
         if item in checklist.items:
             return issue
 
+    if not items:
+        items = [ item ]
     checklist = github.Checklist(body)
-    checklist.add(item)
+    for x in items:
+        checklist.add(x)
     data = {
         "title": title,
         "body": checklist.body,

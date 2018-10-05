@@ -16,7 +16,8 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { PropTypes } from "react";
+import React from 'react';
+import PropTypes from 'prop-types';
 import cockpit from 'cockpit';
 
 import { SerialConsole } from '@patternfly/react-console';
@@ -120,21 +121,24 @@ class SerialConsoleCockpit extends React.Component {
 
     render () {
         return (
-            <SerialConsole id={this.props.vmName} ref='serialconsole'
-                rows={XTERM_ROWS}
-                cols={XTERM_COLS}
-                fontFamily={XTERM_FONT_FAMILY}
-                fontSize={XTERM_FONT_SIZE}
-                status={this.getStatus()}
-                onConnect={this.onConnect}
-                onDisconnect={this.onDisconnect}
-                onResize={this.onResize}
-                onData={this.onData}
-                textDisconnect={_("Disconnect")}
-                textDisconnected={_("Disconnected from serial console. Click the Reconnect button.")}
-                textReconnect={_("Reconnect")}
-                textLoading={_("Loading ...")}
-                topClassName="" />
+            <React.Fragment>
+                {this.props.children}
+                <SerialConsole id={this.props.vmName} ref='serialconsole'
+                    rows={XTERM_ROWS}
+                    cols={XTERM_COLS}
+                    fontFamily={XTERM_FONT_FAMILY}
+                    fontSize={XTERM_FONT_SIZE}
+                    status={this.getStatus()}
+                    onConnect={this.onConnect}
+                    onDisconnect={this.onDisconnect}
+                    onResize={this.onResize}
+                    onData={this.onData}
+                    textDisconnect={_("Disconnect")}
+                    textDisconnected={_("Disconnected from serial console. Click the Reconnect button.")}
+                    textReconnect={_("Reconnect")}
+                    textLoading={_("Loading ...")}
+                    topClassName="" />
+            </React.Fragment>
         );
     }
 }
@@ -142,6 +146,7 @@ class SerialConsoleCockpit extends React.Component {
 SerialConsoleCockpit.propTypes = {
     vmName: PropTypes.string.isRequired,
     spawnArgs: PropTypes.array.isRequired,
+    children: PropTypes.node.isRequired,
 };
 
 export default SerialConsoleCockpit;

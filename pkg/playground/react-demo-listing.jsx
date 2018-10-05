@@ -21,15 +21,18 @@
     "use strict";
 
     var React = require("react");
+    var ReactDOM = require("react-dom");
+    var PropTypes = require("prop-types");
+    var createReactClass = require('create-react-class');
 
     var cockpitListing = require("cockpit-components-listing.jsx");
 
     /* Sample tab renderer for listing pattern
      * Shows a caption and the time it was instantiated
      */
-    var DemoListingTab = React.createClass({
+    var DemoListingTab = createReactClass({
         propTypes: {
-            description: React.PropTypes.string.isRequired,
+            description: PropTypes.string.isRequired,
         },
         getInitialState: function() {
             return {
@@ -121,7 +124,7 @@
                     columns={ [ { name: 'nothing to expand', 'header': true }, 'some text', '127.30.168.11', 'some state' ] } />
             </cockpitListing.Listing>
         );
-        React.render(listing, rootElement);
+        ReactDOM.render(listing, rootElement);
 
         listing = (
             <cockpitListing.Listing title="Demo Listing Pattern with selectable rows"
@@ -137,10 +140,10 @@
                     columns={ [ { name: "no selected entry", 'header': true }, 'aoeuaoeu', '127.30.168.12', rowAction ] } />
             </cockpitListing.Listing>
         );
-        React.render(listing, rootElementSelectable);
+        ReactDOM.render(listing, rootElementSelectable);
 
         var emptyListing = <cockpitListing.Listing title="Demo Empty Listing Pattern" emptyCaption="No Entries" />;
-        React.render(emptyListing, rootElementEmptyList);
+        ReactDOM.render(emptyListing, rootElementEmptyList);
     };
 
     module.exports = {

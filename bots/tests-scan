@@ -20,7 +20,7 @@
 
 BASELINE_PRIORITY = 10
 
-BRANCHES = [ 'master', 'rhel-7.5', 'rhel-7.6' ]
+BRANCHES = [ 'master', 'rhel-7.5', 'rhel-7.6', 'rhel-x' ]
 
 DEFAULT_VERIFY = {
     'avocado/fedora': BRANCHES,
@@ -33,8 +33,8 @@ DEFAULT_VERIFY = {
     'verify/debian-stable': [ 'master' ],
     'verify/debian-testing': [ 'master' ],
     'verify/fedora-i386': [ 'master' ],
-    'verify/fedora-27': [ ],
     'verify/fedora-28': [ 'master' ],
+    'verify/fedora-29': [ 'master' ],
     'verify/fedora-atomic': [ 'master' ],
     'verify/fedora-testing': [ ],
     'verify/ubuntu-1604': [ 'master' ],
@@ -45,11 +45,10 @@ DEFAULT_VERIFY = {
 REDHAT_VERIFY = {
     "verify/rhel-7-5": [ 'rhel-7.5' ],
     "verify/rhel-7-5-distropkg": [ 'master' ],
-    "verify/rhel-7-6": [ 'master', 'rhel-7.6' ],
-    "verify/rhel-7-6-distropkg": [ ],
-    "verify/rhel-x": [ 'master' ],
+    "verify/rhel-7-6": [ 'rhel-7.6' ],
+    "verify/rhel-7-6-distropkg": [ 'master' ],
+    "verify/rhel-x": [ 'master', 'rhel-x' ],
     "verify/rhel-atomic": [ 'master' ],
-    'selenium/explorer': [ 'master' ],
     'selenium/edge': [ 'master' ],
 }
 
@@ -61,11 +60,20 @@ EXTERNAL_PROJECTS = {
     ],
     'cockpit-project/cockpit-ostree': [
         'cockpit/fedora-atomic',
-        'cockpit/rhel-atomic',
         'cockpit/continuous-atomic',
     ],
     'cockpit-project/cockpit-podman': [
         'cockpit/fedora-28',
+    ],
+}
+
+# Test context for projects that use Cockpit's non-public images
+REDHAT_EXTERNAL_PROJECTS = {
+    'cockpit-project/cockpit-ostree': [
+        'cockpit/rhel-atomic',
+    ],
+    'weldr/welder-web': [
+        'cockpit/rhel-7-6',
     ],
 }
 
@@ -79,11 +87,20 @@ import pipes
 import random
 import sys
 import time
+import itertools
 import urllib.request, urllib.parse, urllib.error
 
 sys.dont_write_bytecode = True
 
 from task import github, label, REDHAT_PING
+
+# Check if we have access to Red Hat network
+try:
+    urllib.request.urlopen(REDHAT_PING).read()
+    run_redhat_tasks = True
+except IOError:
+    run_redhat_tasks = False
+
 
 def main():
     parser = argparse.ArgumentParser(description='Bot: scan and update status of pull requests on GitHub')
@@ -120,14 +137,7 @@ def main():
 
 def default_policy():
     policy = DEFAULT_VERIFY
-
-    # Check if we have access to Red Hat network
-    try:
-        urllib.request.urlopen(REDHAT_PING).read()
-        policy.update(REDHAT_VERIFY)
-    except IOError:
-        pass
-
+    policy.update(REDHAT_VERIFY)
     return policy
 
 # Prepare a human readable output
@@ -149,6 +159,10 @@ def tests_human(priority, name, revision, ref, context, base, repo, bots_ref):
 
 # Prepare an test invocation command
 def tests_invoke(priority, name, revision, ref, context, base, repo, bots_ref, options):
+    if not run_redhat_tasks and (context in REDHAT_VERIFY or
+                                 context in REDHAT_EXTERNAL_PROJECTS.get(repo, [])):
+        return ''
+
     try:
         priority = int(priority)
     except (ValueError, TypeError):
@@ -221,7 +235,7 @@ def prioritize(status, title, labels, priority, context):
             priority -= 1
 
         # Pull requests where the title starts with WIP get penalized
-        if title.startswith("WIP"):
+        if title.startswith("WIP") or "needswork" in values:
             priority -= 3
 
         # Is testing already in progress?
@@ -334,7 +348,8 @@ def cockpit_tasks(api, update, contexts, repo):
             return False
 
         if trigger_externals():
-            for proj_repo, proj_contexts in EXTERNAL_PROJECTS.items():
+            for proj_repo, proj_contexts in itertools.chain(
+                    EXTERNAL_PROJECTS.items(), REDHAT_EXTERNAL_PROJECTS.items()):
                 for context in proj_contexts:
                     repo_context = context + "@" + proj_repo
 
@@ -367,7 +382,7 @@ def scan_for_pull_tasks(api, policy, opts, repo):
 
 def scan_external_projects(opts):
     tests = []
-    for repo, contexts in EXTERNAL_PROJECTS.items():
+    for repo, contexts in itertools.chain(EXTERNAL_PROJECTS.items(), REDHAT_EXTERNAL_PROJECTS.items()):
         policy = { c: [ "master" ] for c in contexts }
         tests += scan_for_pull_tasks(github.GitHub(repo=repo), policy, opts, repo)
     return tests

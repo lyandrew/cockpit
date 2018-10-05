@@ -19,6 +19,8 @@
 
 var cockpit = require("cockpit");
 var React = require("react");
+var PropTypes = require("prop-types");
+var createReactClass = require('create-react-class');
 
 var _ = cockpit.gettext;
 
@@ -26,21 +28,19 @@ var _ = cockpit.gettext;
  * Expected props:
  *  - name (key)
  *  - recommended (boolean)
- *  - active (boolean)
  *  - selected (boolean)
  *  - title
  *  - description
  *  - click (callback function)
  */
-var TunedDialogProfile = React.createClass({
+var TunedDialogProfile = createReactClass({
     propTypes: {
-        name: React.PropTypes.string.isRequired,
-        recommended: React.PropTypes.bool.isRequired,
-        active: React.PropTypes.bool.isRequired,
-        selected: React.PropTypes.bool.isRequired,
-        title: React.PropTypes.string.isRequired,
-        description: React.PropTypes.string.isRequired,
-        click: React.PropTypes.func.isRequired,
+        name: PropTypes.string.isRequired,
+        recommended: PropTypes.bool.isRequired,
+        selected: PropTypes.bool.isRequired,
+        title: PropTypes.string.isRequired,
+        description: PropTypes.string.isRequired,
+        click: PropTypes.func.isRequired,
     },
     render: function() {
         var classes = "list-group-item";
@@ -70,11 +70,11 @@ var TunedDialogProfile = React.createClass({
  *    - title (string)
  *    - description (string)
  */
-var TunedDialogBody = React.createClass({
+var TunedDialogBody = createReactClass({
     propTypes: {
-        active_profile: React.PropTypes.string.isRequired,
-        change_selected: React.PropTypes.func.isRequired,
-        profiles: React.PropTypes.array.isRequired,
+        active_profile: PropTypes.string.isRequired,
+        change_selected: PropTypes.func.isRequired,
+        profiles: PropTypes.array.isRequired,
     },
     getInitialState: function() {
         return {
@@ -105,7 +105,7 @@ var TunedDialogBody = React.createClass({
     }
 });
 
-var TunedLink = React.createClass({
+var TunedLink = createReactClass({
     render: function() {
         var self = this;
 

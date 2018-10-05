@@ -234,7 +234,7 @@ process_pong (CockpitChannel *self,
                  self->priv->id, sequence);
     }
 
-  if (sequence > self->priv->out_window)
+  if (sequence >= self->priv->out_window)
     {
       /* Up to this point has been confirmed received */
       self->priv->out_window = sequence + CHANNEL_FLOW_WINDOW;
@@ -359,7 +359,8 @@ cockpit_channel_actual_send (CockpitChannel *self,
       self->priv->out_sequence = out_sequence;
       if (self->priv->out_sequence > self->priv->out_window)
         {
-          g_debug ("%s: sent too much data without acknowledgement, emitting back pressure", self->priv->id);
+          g_debug ("%s: sent too much data without acknowledgement, emitting back pressure until %"
+                   G_GINT64_FORMAT, self->priv->id, self->priv->out_window);
           cockpit_flow_emit_pressure (COCKPIT_FLOW (self), TRUE);
         }
     }
@@ -456,7 +457,7 @@ cockpit_channel_ensure_capable (CockpitChannel *channel,
       if (channel->priv->capabilities == NULL ||
           !strv_contains(channel->priv->capabilities, capabilities[i]))
         {
-          g_message ("unsupported capability required: %s", capabilities[i]);
+          g_message ("%s: unsupported capability required: %s", channel->priv->id, capabilities[i]);
           missing = TRUE;
         }
     }

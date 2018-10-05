@@ -19,25 +19,22 @@
 
 "use strict";
 
-var cockpit = require("cockpit");
-var dialog = require("./dialog");
-var utils = require("./utils.js");
+import cockpit from "cockpit";
+import utils from "./utils.js";
 
-var React = require("react");
-var StorageControls = require("./storage-controls.jsx");
-
-var StorageButton = StorageControls.StorageButton;
-var StorageLink = StorageControls.StorageLink;
+import React from "react";
+import createReactClass from 'create-react-class';
+import { StorageButton, StorageLink } from "./storage-controls.jsx";
+import { clevis_recover_passphrase } from "./crypto-keyslots.jsx";
+import { dialog_open, TextInput, PassInput, SizeSlider, BlockingMessage, TeardownMessage } from "./dialogx.jsx";
 
 var _ = cockpit.gettext;
 
 function lvol_rename(lvol) {
-    dialog.open({ Title: _("Rename Logical Volume"),
+    dialog_open({ Title: _("Rename Logical Volume"),
                   Fields: [
-                      { TextInput: "name",
-                        Title: _("Name"),
-                        Value: lvol.Name
-                      }
+                      TextInput("name", _("Name"),
+                                { value: lvol.Name })
                   ],
                   Action: {
                       Title: _("Rename"),
@@ -48,7 +45,7 @@ function lvol_rename(lvol) {
     });
 }
 
-function lvol_and_fsys_resize(client, lvol, size, offline) {
+function lvol_and_fsys_resize(client, lvol, size, offline, passphrase) {
     var block, crypto, fsys;
     var crypto_overhead;
     var vdo;
@@ -94,7 +91,10 @@ function lvol_and_fsys_resize(client, lvol, size, offline) {
 
     function crypto_resize() {
         if (crypto) {
-            return crypto.Resize(size - crypto_overhead, { });
+            let opts = { };
+            if (passphrase)
+                opts.passphrase = { t: "s", v: passphrase };
+            return crypto.Resize(size - crypto_overhead, opts);
         } else {
             return cockpit.resolve();
         }
@@ -120,6 +120,23 @@ function lvol_and_fsys_resize(client, lvol, size, offline) {
     }
 }
 
+function figure_out_passphrase(block, dlg) {
+    // TODO - absorb this step into the dialog, like the key slot
+    // dialogs do, once this is rewritten in React.
+
+    if (block && block.IdType == "crypto_LUKS" && block.IdVersion == 2) {
+        clevis_recover_passphrase(block).then(passphrase => {
+            if (passphrase == "") {
+                dlg(true);
+            } else {
+                dlg(false, passphrase);
+            }
+        });
+    } else {
+        dlg(false, null);
+    }
+}
+
 function lvol_grow(client, lvol, info) {
     var block = client.lvols_block[lvol.path];
     var vgroup = client.vgroups[lvol.VolumeGroup];
@@ -128,37 +145,38 @@ function lvol_grow(client, lvol, info) {
     var usage = utils.get_active_usage(client, block && info.grow_needs_unmount ? block.path : null);
 
     if (usage.Blocking) {
-        dialog.open({ Title: cockpit.format(_("$0 is in active use"), lvol.Name),
-                      Blocking: usage.Blocking,
-                      Fields: [ ]
+        dialog_open({ Title: cockpit.format(_("$0 is in active use"), lvol.Name),
+                      Body: BlockingMessage(usage)
         });
         return;
     }
 
-    dialog.open({ Title: _("Grow Logical Volume"),
-                  Teardown: usage.Teardown,
-                  Fields: [
-                      { SizeSlider: "size",
-                        Title: _("Size"),
-                        Value: lvol.Size,
-                        Min: lvol.Size,
-                        Max: (pool
-                            ? pool.Size * 3
-                            : lvol.Size + vgroup.FreeSize),
-                        AllowInfinite: !!pool,
-                        Round: vgroup.ExtentSize
+    figure_out_passphrase(block, (need_explicit_passphrase, passphrase) => {
+        dialog_open({ Title: _("Grow Logical Volume"),
+                      Footer: TeardownMessage(usage),
+                      Fields: [
+                          SizeSlider("size", _("Size"),
+                                     { value: lvol.Size,
+                                       min: lvol.Size,
+                                       max: (pool ? pool.Size * 3 : lvol.Size + vgroup.FreeSize),
+                                       allow_infinite: !!pool,
+                                       round: vgroup.ExtentSize
+                                     }),
+                          PassInput("passphrase", _("Passphrase"),
+                                    { visible: () => need_explicit_passphrase })
+                      ],
+                      Action: {
+                          Title: _("Grow"),
+                          action: function (vals) {
+                              return utils.teardown_active_usage(client, usage)
+                                      .then(function () {
+                                          return lvol_and_fsys_resize(client, lvol, vals.size,
+                                                                      info.grow_needs_unmount,
+                                                                      passphrase || vals.passphrase);
+                                      });
+                          }
                       }
-                  ],
-                  Action: {
-                      Title: _("Grow"),
-                      action: function (vals) {
-                          return utils.teardown_active_usage(client, usage)
-                                  .then(function () {
-                                      return lvol_and_fsys_resize(client, lvol, vals.size,
-                                                                  info.grow_needs_unmount);
-                                  });
-                      }
-                  }
+        });
     });
 }
 
@@ -169,37 +187,40 @@ function lvol_shrink(client, lvol, info) {
     var usage = utils.get_active_usage(client, block && info.shrink_needs_unmount ? block.path : null);
 
     if (usage.Blocking) {
-        dialog.open({ Title: cockpit.format(_("$0 is in active use"), lvol.Name),
-                      Blocking: usage.Blocking,
-                      Fields: [ ]
+        dialog_open({ Title: cockpit.format(_("$0 is in active use"), lvol.Name),
+                      Body: BlockingMessage(usage)
         });
         return;
     }
 
-    dialog.open({ Title: _("Shrink Logical Volume"),
-                  Teardown: usage.Teardown,
-                  Fields: [
-                      { SizeSlider: "size",
-                        Title: _("Size"),
-                        Value: lvol.Size,
-                        Max: lvol.Size,
-                        Round: vgroup.ExtentSize
+    figure_out_passphrase(block, (need_explicit_passphrase, passphrase) => {
+        dialog_open({ Title: _("Shrink Logical Volume"),
+                      Footer: TeardownMessage(usage),
+                      Fields: [
+                          SizeSlider("size", _("Size"),
+                                     { value: lvol.Size,
+                                       max: lvol.Size,
+                                       round: vgroup.ExtentSize
+                                     }),
+                          PassInput("passphrase", _("Passphrase"),
+                                    { visible: () => need_explicit_passphrase })
+                      ],
+                      Action: {
+                          Title: _("Shrink"),
+                          action: function (vals) {
+                              return utils.teardown_active_usage(client, usage)
+                                      .then(function () {
+                                          return lvol_and_fsys_resize(client, lvol, vals.size,
+                                                                      info.shrink_needs_unmount,
+                                                                      passphrase || vals.passphrase);
+                                      });
+                          }
                       }
-                  ],
-                  Action: {
-                      Title: _("Shrink"),
-                      action: function (vals) {
-                          return utils.teardown_active_usage(client, usage)
-                                  .then(function () {
-                                      return lvol_and_fsys_resize(client, lvol, vals.size,
-                                                                  info.shrink_needs_unmount);
-                                  });
-                      }
-                  }
+        });
     });
 }
 
-var BlockVolTab = React.createClass({
+var BlockVolTab = createReactClass({
     render: function () {
         var self = this;
         var client = self.props.client;
@@ -209,21 +230,18 @@ var BlockVolTab = React.createClass({
         var vgroup = client.vgroups[lvol.VolumeGroup];
 
         function create_snapshot() {
-            dialog.open({ Title: _("Create Snapshot"),
+            dialog_open({ Title: _("Create Snapshot"),
                           Fields: [
-                              { TextInput: "name",
-                                Title: _("Name"),
-                                validate: utils.validate_lvm2_name
-                              },
-                              { SizeSlider: "size",
-                                Title: _("Size"),
-                                Value: lvol.Size * 0.2,
-                                Max: lvol.Size,
-                                Round: vgroup.ExtentSize,
-                                visible: function () {
-                                    return lvol.ThinPool == "/";
-                                }
-                              }
+                              TextInput("name", _("Name"),
+                                        { validate: utils.validate_lvm2_name }),
+                              SizeSlider("size", _("Size"),
+                                         { value: lvol.Size * 0.2,
+                                           max: lvol.Size,
+                                           round: vgroup.ExtentSize,
+                                           visible: function () {
+                                               return lvol.ThinPool == "/";
+                                           }
+                                         })
                           ],
                           Action: {
                               Title: _("Create"),
@@ -314,29 +332,31 @@ var BlockVolTab = React.createClass({
                     <StorageButton onClick={create_snapshot}>{_("Create Snapshot")}</StorageButton>
                 </div>
                 <table className="info-table-ct">
-                    <tr>
-                        <td>{_("Name")}</td>
-                        <td>
-                            <StorageLink onClick={rename}>{this.props.lvol.Name}</StorageLink>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>{_("Size")}</td>
-                        <td>
-                            {utils.fmt_size(this.props.lvol.Size)}
-                            <div className="tab-row-actions">
-                                <StorageButton excuse={shrink_excuse} onClick={shrink}>{_("Shrink")}</StorageButton>
-                                <StorageButton excuse={grow_excuse} onClick={grow}>{_("Grow")}</StorageButton>
-                            </div>
-                        </td>
-                    </tr>
+                    <tbody>
+                        <tr>
+                            <td>{_("Name")}</td>
+                            <td>
+                                <StorageLink onClick={rename}>{this.props.lvol.Name}</StorageLink>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>{_("Size")}</td>
+                            <td>
+                                {utils.fmt_size(this.props.lvol.Size)}
+                                <div className="tab-row-actions">
+                                    <StorageButton excuse={shrink_excuse} onClick={shrink}>{_("Shrink")}</StorageButton>
+                                    <StorageButton excuse={grow_excuse} onClick={grow}>{_("Grow")}</StorageButton>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
                 </table>
             </div>
         );
     },
 });
 
-var PoolVolTab = React.createClass({
+var PoolVolTab = createReactClass({
     render: function () {
         var self = this;
 

@@ -2,9 +2,10 @@
 
 set -e
 
-/var/lib/testvm/fedora.install --rhel --skip cockpit-kubernetes \
-                               --skip cockpit-docker "$@"
+# remove cockpit distro packages, testing with upstream master
+rpm --erase --verbose cockpit cockpit-ws cockpit-bridge cockpit-system
 
-# HACK: https://bugzilla.redhat.com/show_bug.cgi?id=1600452
-# packagekitd spins at 100% CPU on startup
-systemctl mask packagekit.service
+/var/lib/testvm/fedora.install --rhel "$@"
+
+# HACK: work around https://bugzilla.redhat.com/show_bug.cgi?id=1624862
+rm /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-AUX-2018

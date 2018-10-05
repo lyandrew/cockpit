@@ -46,18 +46,51 @@
 
    They are all called like this:
 
-       FieldFunction(tag, title, { option: value, ... },
-                     [ child, ... ])
+       FieldFunction(tag, title, { option: value, ... })
 
    The "tag" is used to uniquely identify this field in the dialog.
-   The action function will receive the values of all field in an
+   The action function will receive the values of all fields in an
    object, and the tag of a field is the key in that object, for
    example.  The tag is also used to interact with a field from tests.
 
+   ACTION FUNCTIONS
+
+   The action funtion is called like this:
+
+      action(values, progress_callback)
+
+   The "values" parameter contains the validated values of the dialog
+   fields and the "progress_callback" can be called by the action function
+   to update the progress information in the dialog while it runs.
+
+   The progress callback should be called like this:
+
+      progress_callback(message, cancel_callback)
+
+   The "message" will be displayed in the dialog and if "cancel_callback" is
+   not null, the Cancel button in the dialog will be enabled and
+   "cancel_callback" will be called when the user clicks it.
+
+   The return value of the action function is normally a promise.  When
+   it is resolved, the dialog is closed.  When it is rejected the value
+   given in the rejection is displayed as an error in the dialog.
+
+   If the error value is a string, it is displayed as a global failure
+   message.  When it is an object, it contains errors for individual
+   fields in this form:
+
+      { tag1: message, tag2: message }
+
+   As a special case, when "message" is "true", the field is rendered
+   as having an error (with a red outline, say), but without any
+   directly associated text.  The idea is that a group of fields is in
+   error, and the error message for all of them is shown below the last
+   one in the group.
+
    COMMON FIELD OPTIONS
 
-   Each field function describes its options and its children.
-   However, there are some options that apply to all fields:
+   Each field function describes its options.  However, there are some
+   options that apply to all fields:
 
    - value
 
@@ -99,6 +132,34 @@
    - explanation
 
    A test to show below the field, as an explanation.
+
+   RUNNING TASKS AND DYNAMIC UPDATES
+
+   The dialog_show function returns an object that can be used to interact
+   with the dialog in various ways while it is open.
+
+       dlg = dialog_show(...)
+
+   One can run asynchronous tasks:
+
+       dlg.run("title", promise)
+
+   This will disable the footer buttons and wait for promise to be resolved
+   or rejected while showing "title" and a spinner.
+
+   One can set field values and options:
+
+       dlg.set_values({ tag1: value1, tag2: value2, ... })
+       dlg.set_options(tag, { opt1: value1, opt2: value2, ... })
+
+   It is also possible to specify a "update" function when creating the dialog:
+
+       dialog_show({ ...
+                     update: function (dlg, vals, trigger) { }
+                     ... })
+
+   This function is called whenever the values of fields are changed.  The
+   "trigger" argument is the tag of the field that has just been changed.
 
    DEFINING NEW FIELD TYPES
 
@@ -156,6 +217,8 @@ import React from "react";
 
 import { show_modal_dialog } from "cockpit-components-dialog.jsx";
 import { StatelessSelect, SelectEntry } from "cockpit-components-select.jsx";
+import { fmt_size, block_name, format_size_and_text } from "./utils.js";
+
 const _ = cockpit.gettext;
 
 const Validated = ({ errors, error_key, explanation, children }) => {
@@ -168,25 +231,35 @@ const Validated = ({ errors, error_key, explanation, children }) => {
     return (
         <div className={error ? "has-error" : ""}>
             { children }
-            { text ? <span className="help-block">{text}</span> : null }
+            { (text && text !== true) ? <span className="help-block dialog-error">{text}</span> : null }
         </div>
     );
 };
 
 const Row = ({ tag, title, errors, options, children }) => {
     if (tag) {
-        if (options.widest_title)
-            title = [ <div className="widest-title">{options.widest_title}</div>, <div>{title}</div> ];
-        return (
-            <tr>
-                <td className="top">{title}</td>
-                <td>
-                    <Validated errors={errors} error_key={tag} explanation={options.explanation}>
-                        { children }
-                    </Validated>
-                </td>
-            </tr>
+        let validated = (
+            <Validated errors={errors} error_key={tag} explanation={options.explanation}>
+                { children }
+            </Validated>
         );
+
+        if (title || title == "") {
+            if (options.widest_title)
+                title = [ <div className="widest-title">{options.widest_title}</div>, <div>{title}</div> ];
+            return (
+                <tr>
+                    <td className="top">{title}</td>
+                    <td>{validated}</td>
+                </tr>
+            );
+        } else {
+            return (
+                <tr>
+                    <td colSpan="2">{validated}</td>
+                </tr>
+            );
+        }
     } else {
         return children;
     }
@@ -197,21 +270,31 @@ function is_visible(field, values) {
 }
 
 const Body = ({body, fields, values, errors, onChange}) => {
+    function make_row(field, index) {
+        function change(val) {
+            values[field.tag] = val;
+            fields.forEach(f => {
+                if (f.tag && f.options && f.options.update)
+                    values[f.tag] = f.options.update(values, field.tag);
+            });
+            onChange(field.tag);
+        }
+
+        if (is_visible(field, values))
+            return (
+                <Row key={index} tag={field.tag} title={field.title} errors={errors} options={field.options}>
+                    { field.render(values[field.tag], change) }
+                </Row>
+            );
+    }
+
     return (
         <div className="modal-body">
             { body || null }
             { fields.length > 0
                 ? <table className="form-table-ct">
                     <tbody>
-                        { fields.map(f => {
-                            if (is_visible(f, values))
-                                return (
-                                    <Row key={f.tag} tag={f.tag} title={f.title} errors={errors} options={f.options}>
-                                        { f.render(values[f.tag], val => { values[f.tag] = val; onChange() }) }
-                                    </Row>
-                                );
-                        })
-                        }
+                        { fields.map(make_row) }
                     </tbody>
                 </table> : null
             }
@@ -230,7 +313,9 @@ export const dialog_open = (def) => {
     // Body component maybe, but we also want the values up here so
     // that we can pass them to validate and the action functon.
 
-    const update = (errors) => {
+    const update = (errors, trigger) => {
+        if (def.update)
+            def.update(self, values, trigger);
         dlg.setProps(props(errors));
     };
 
@@ -242,7 +327,7 @@ export const dialog_open = (def) => {
                         fields={fields}
                         values={values}
                         errors={errors}
-                        onChange={() => update(null)} />
+                        onChange={trigger => update(null, trigger)} />
         };
     };
 
@@ -255,24 +340,39 @@ export const dialog_open = (def) => {
         if (def.Action) {
             actions = [
                 { caption: def.Action.Title,
-                  style: def.Action.DangerButton ? "danger" : "primary",
+                  style: (def.Action.Danger || def.Action.DangerButton) ? "danger" : "primary",
                   disabled: running_promise != null,
-                  clicked: function () {
-                      return validate().then(errors => {
-                          if (errors) {
-                              update(errors);
-                              return Promise.reject();
-                          } else {
-                              return def.Action.action(values);
-                          }
-                      });
+                  clicked: function (progress_callback) {
+                      return validate()
+                              .then(() => {
+                                  let visible_values = { };
+                                  fields.forEach(f => {
+                                      if (is_visible(f, values))
+                                          visible_values[f.tag] = values[f.tag];
+                                  });
+                                  return def.Action.action(visible_values, progress_callback);
+                              })
+                              .catch(error => {
+                                  if (error.toString() != "[object Object]") {
+                                      return Promise.reject(error);
+                                  } else {
+                                      update(error, null);
+                                      return Promise.reject();
+                                  }
+                              });
                   }
                 }
             ];
         }
 
+        let extra = <div>
+            { def.Footer }
+            { def.Action && def.Action.Danger ? <div className="modal-footer-danger">{def.Action.Danger}</div> : null }
+        </div>;
+
         return {
             idle_message: running_promise ? [ <div className="spinner spinner-sm" />, <span>{running_title}</span> ] : null,
+            extra_element: extra,
             actions: actions,
             cancel_caption: def.Action ? _("Cancel") : _("Close")
         };
@@ -287,13 +387,14 @@ export const dialog_open = (def) => {
         })).then(results => {
             let errors = { };
             fields.forEach((f, i) => { if (results[i]) errors[f.tag] = results[i]; });
-            return (Object.keys(errors).length > 0) ? errors : null;
+            if (Object.keys(errors).length > 0)
+                return Promise.reject(errors);
         });
     };
 
     let dlg = show_modal_dialog(props(null), footer_props(null, null));
 
-    return {
+    let self = {
         run: (title, promise) => {
             update_footer(title, promise);
             promise.then(
@@ -302,17 +403,28 @@ export const dialog_open = (def) => {
                 },
                 (errors) => {
                     if (errors)
-                        update(errors);
+                        update(errors, null);
                     update_footer(null, null);
                 });
         },
 
         set_values: (new_vals) => {
             Object.assign(values, new_vals);
-            update(null);
-        }
+            update(null, null);
+        },
+
+        set_options: (tag, new_options) => {
+            fields.forEach(f => {
+                if (f.tag == tag) {
+                    Object.assign(f.options, new_options);
+                    update(null, null);
+                }
+            });
+        },
 
     };
+
+    return self;
 };
 
 /* GENERIC FIELD TYPES
@@ -328,6 +440,7 @@ export const TextInput = (tag, title, options) => {
         render: (val, change) =>
             <input data-field={tag} data-field-type="text-input"
                    className="form-control" type="text" value={val}
+                   disabled={options.disabled}
                    onChange={event => change(event.target.value)} />
     };
 };
@@ -346,18 +459,79 @@ export const PassInput = (tag, title, options) => {
     };
 };
 
-export const SelectOne = (tag, title, options, choices) => {
+class ComboboxElement extends React.Component {
+    constructor(props) {
+        super();
+        this.state = { open: false };
+    }
+
+    render() {
+        let { value, onChange, disabled, choices } = this.props;
+
+        const toggle_open = (event) => {
+            if (event.button === 0)
+                this.setState({ open: !this.state.open });
+        };
+
+        const set_from_menu = (event, text) => {
+            if (event.button === 0) {
+                this.setState({ open: false });
+                onChange(text);
+            }
+        };
+
+        return (
+            <div className="combobox-container">
+                <div className={"input-group" + (this.state.open ? " open" : "")}>
+                    <input className="combobox form-control" type="text"
+                       disabled={disabled} value={value}
+                           onChange={event => onChange(event.target.value)} />
+                    { choices.length > 0 && !disabled
+                        ? <React.Fragment>
+                            <span className="input-group-addon"
+                              onClick={toggle_open}>
+                                <span className="caret" />
+                            </span>
+                            <ul className="typeahead typeahead-long dropdown-menu">
+                                { choices.map(c => <li key={c}><a onClick={ev => set_from_menu(ev, c)}>{c}</a></li>) }
+                            </ul>
+                        </React.Fragment>
+                        : null
+                    }
+                </div>
+            </div>
+        );
+    }
+}
+
+export const ComboBox = (tag, title, options) => {
     return {
         tag: tag,
         title: title,
         options: options,
-        initial_value: options.value || choices[0].value,
+        initial_value: options.value || "",
+
+        render: (val, change) =>
+            <div data-field={tag} data-field-type="combobox">
+                <ComboboxElement value={val} choices={options.choices}
+                                 disabled={options.disabled} onChange={change} />
+            </div>
+    };
+};
+
+export const SelectOne = (tag, title, options) => {
+    return {
+        tag: tag,
+        title: title,
+        options: options,
+        initial_value: options.value || options.choices[0].value,
 
         render: (val, change) => {
             return (
-                <div data-field={tag} data-field-type="select">
+                <div data-field={tag} data-field-type="select" data-value={val}>
                     <StatelessSelect extraClass="form-control" selected={val} onChange={change}>
-                        { choices.map(c => <SelectEntry data={c.value} key={c.title}>{c.title}</SelectEntry>) }
+                        { options.choices.map(c => <SelectEntry data={c.value} disabled={c.disabled}
+                                                                key={c.title}>{c.title}</SelectEntry>) }
                     </StatelessSelect>
                 </div>
             );
@@ -365,23 +539,136 @@ export const SelectOne = (tag, title, options, choices) => {
     };
 };
 
-export const SelectOneRadio = (tag, title, options, choices) => {
+export const SelectOneRadio = (tag, title, options) => {
     return {
         tag: tag,
         title: title,
         options: options,
-        initial_value: options.value || choices[0].value,
+        initial_value: options.value || options.choices[0].value,
 
         render: (val, change) => {
             return (
                 <span className="radio radio-horizontal" data-field={tag} data-field-type="select-radio" >
-                    { choices.map(c => (
+                    { options.choices.map(c => (
                         <label>
                             <input type="radio" checked={val == c.value} data-data={c.value}
                                      onChange={event => change(c.value)} />{c.title}
                         </label>))
                     }
                 </span>
+            );
+        }
+    };
+};
+
+export const SelectRow = (tag, headers, options) => {
+    return {
+        tag: tag,
+        title: null,
+        options: options,
+        initial_value: options.value || options.choices[0].value,
+
+        render: (val, change) => {
+            return (
+                <table data-field={tag} data-field-type=" select-row" className="dialog-select-row-table">
+                    <thead>
+                        <tr>{headers.map(h => <th>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                        { options.choices.map(row => {
+                            return (
+                                <tr key={row.value}
+                                    onMouseDown={ev => { if (ev && ev.button === 0) change(row.value); }}
+                                    className={row.value == val ? "highlight-ct" : ""}>
+                                    {row.columns.map(c => <td>{c}</td>)}
+                                </tr>
+                            );
+                        })
+                        }
+                    </tbody>
+                </table>
+            );
+        }
+    };
+};
+
+export const SelectSpaces = (tag, title, options) => {
+    return {
+        tag: tag,
+        title: title,
+        options: options,
+        initial_value: [ ],
+
+        render: (val, change) => {
+            if (options.spaces.length === 0)
+                return <span className="text-danger">{options.empty_warning}</span>;
+
+            return (
+                <ul className="list-group available-disks-group dialog-list-ct"
+                data-field={tag} data-field-type="select-spaces">
+                    { options.spaces.map(spc => {
+                        let selected = (val.indexOf(spc) >= 0);
+
+                        const on_change = (event) => {
+                            if (event.target.checked && !selected)
+                                change(val.concat(spc));
+                            else if (!event.target.checked && selected)
+                                change(val.filter(v => (v != spc)));
+                        };
+
+                        return (
+                            <li key={spc.desc} className="list-group-item">
+                                <div className="checkbox">
+                                    <label>
+                                        <input type="checkbox" checked={selected} onChange={on_change} />
+                                        { spc.block ? <span className="pull-right">{block_name(spc.block)}</span> : null }
+                                        <span>{format_size_and_text(spc.size, spc.desc)}</span>
+                                    </label>
+                                </div>
+                            </li>
+                        );
+                    })
+                    }
+                </ul>
+            );
+        }
+    };
+};
+
+export const SelectSpace = (tag, title, options) => {
+    return {
+        tag: tag,
+        title: title,
+        options: options,
+        initial_value: null,
+
+        render: (val, change) => {
+            if (options.spaces.length === 0)
+                return <span className="text-danger">{options.empty_warning}</span>;
+
+            return (
+                <ul className="list-group available-disks-group dialog-list-ct"
+                    data-field={tag} data-field-type="select-spaces">
+                    { options.spaces.map(spc => {
+                        const on_change = (event) => {
+                            if (event.target.checked)
+                                change(spc);
+                        };
+
+                        return (
+                            <li key={spc.desc} className="list-group-item">
+                                <div className="radio">
+                                    <label>
+                                        <input type="radio" checked={val == spc} onChange={on_change} />
+                                        { spc.block ? <span className="pull-right">{block_name(spc.block)}</span> : null }
+                                        <span>{format_size_and_text(spc.size, spc.desc)}</span>
+                                    </label>
+                                </div>
+                            </li>
+                        );
+                    })
+                    }
+                </ul>
             );
         }
     };
@@ -416,7 +703,7 @@ export const CheckBox = (tag, title, options) => {
 export const TextInputChecked = (tag, title, options) => {
     return {
         tag: tag,
-        title: options.row_title,
+        title: options.row_title || "",
         options: options,
         initial_value: (options.value === undefined) ? false : options.value,
 
@@ -437,23 +724,10 @@ export const TextInputChecked = (tag, title, options) => {
     };
 };
 
-export const Intermission = (children, options) => {
-    return {
-        tag: false,
-        title: "",
-        options: options,
-        initial_value: false,
-
-        render: () => {
-            return <div className="intermission">{ children }</div>;
-        }
-    };
-};
-
 export const Skip = (className, options) => {
     return {
         tag: false,
-        title: "",
+        title: null,
         options: options,
         initial_value: false,
 
@@ -461,4 +735,272 @@ export const Skip = (className, options) => {
             return <tr><td className={className} /></tr>;
         }
     };
+};
+
+const StatelessSlider = ({ fraction, onChange }) => {
+    function start_dragging(event) {
+        let el = event.currentTarget;
+        let width = el.offsetWidth;
+        let left = el.offsetLeft;
+        while (el.offsetParent) {
+            el = el.offsetParent;
+            left += el.offsetLeft;
+        }
+
+        function drag(event) {
+            let f = (event.pageX - left) / width;
+            if (f < 0) f = 0;
+            if (f > 1) f = 1;
+            onChange(f);
+        }
+
+        function stop_dragging() {
+            document.removeEventListener("mousemove", drag);
+            document.removeEventListener("mouseup", stop_dragging);
+        }
+
+        document.addEventListener("mousemove", drag);
+        document.addEventListener("mouseup", stop_dragging);
+        drag(event);
+    }
+
+    if (fraction < 0) fraction = 0;
+    if (fraction > 1) fraction = 1;
+
+    return (
+        <div className="slider" onMouseDown={start_dragging}>
+            <div className="slider-bar" style={{ width: fraction * 100 + "%" }}>
+                <div className="slider-thumb" />
+            </div>
+        </div>
+    );
+};
+
+class SizeSliderElement extends React.Component {
+    constructor(props) {
+        super();
+        this.units = cockpit.get_byte_units(props.value || props.max);
+        this.units.forEach(u => { if (u.selected) this.state = { unit: u.factor }; });
+    }
+
+    render() {
+        let { val, max, round, onChange } = this.props;
+        let min = this.props.min || 0;
+        let { unit } = this.state;
+
+        const change_slider = (f) => {
+            let value = f * max;
+
+            if (round) {
+                if (typeof round == "function")
+                    value = round(value);
+                else
+                    value = Math.round(value / round) * round;
+            }
+
+            onChange(Math.max(min, value));
+        };
+
+        const change_text = (event) => {
+            if (event.type == "change") {
+                let val = Number(event.target.value) * unit;
+                if (event.target.value === "" || isNaN(val)) {
+                    /* If there something else than a number in the
+                       input element, we use that as the value
+                       directly so that it sticks around.  It will be
+                       rejected by the validate function below.
+                     */
+                    onChange(event.target.value);
+                } else {
+                    // As a special case, if the user types something that
+                    // looks like the maximum (or minimum) when formatted,
+                    // always use exactly the maximum (or minimum).  Otherwise
+                    // we have the confusing possibility that with the exact
+                    // same string in the text input, the size is sometimes
+                    // too large (or too small) and sometimes not.
+
+                    const sanitize = (limit) => {
+                        var fmt = cockpit.format_number(limit / unit);
+                        var parse = +fmt * unit;
+
+                        if (val == parse)
+                            val = limit;
+                    };
+
+                    sanitize(min);
+                    sanitize(max);
+
+                    onChange(val);
+                }
+            }
+        };
+
+        const change_unit = (u) => this.setState({ unit: Number(u) });
+
+        return (
+            <div className="size-sliderx">
+                <StatelessSlider fraction={val / max} onChange={change_slider} />
+                <input className="size-text form-control"
+                       value={ val === "" || isNaN(val) ? val : cockpit.format_number(val / unit) }
+                       onChange={change_text} />
+                <StatelessSelect extraClass="size-unit" selected={unit} onChange={change_unit}>
+                    { this.units.map(u => <SelectEntry data={u.factor} key={u.name}>{u.name}</SelectEntry>) }
+                </StatelessSelect>
+            </div>
+        );
+    }
+}
+
+export const SizeSlider = (tag, title, options) => {
+    let validate = (val, vals) => {
+        let msg = null;
+
+        if (val === "" || isNaN(val))
+            msg = _("Size must be a number");
+        else if (val === 0)
+            msg = _("Size cannot be zero");
+        else if (val < 0)
+            msg = _("Size cannot be negative");
+        else if (!options.allow_infinite && val > options.max)
+            msg = _("Size is too large");
+        else if (options.min !== undefined && val < options.min)
+            msg = cockpit.format(_("Size must be at least $0"), fmt_size(options.min));
+        else if (options.validate)
+            msg = options.validate(val, vals);
+
+        return msg;
+    };
+
+    /* This object might be mutated by dialog.set_options(), so we
+       have to use it below for the 'max' option in order to pick up
+       changes to it.
+     */
+    let all_options = Object.assign({ }, options, { validate: validate });
+
+    return {
+        tag: tag,
+        title: title,
+        options: all_options,
+        initial_value: options.value || options.max || 0,
+
+        render: (val, change) => {
+            return (
+                <div data-field={tag} data-field-type="size-slider">
+                    <SizeSliderElement val={val}
+                                       max={all_options.max}
+                                       min={all_options.min}
+                                       round={all_options.round}
+                                       onChange={change} />
+                </div>
+            );
+        }
+    };
+};
+
+function add_para(parts, text) {
+    parts.push(<p key={text}>{text}</p>);
+}
+
+function add_usage_message(parts, list, text, c1, c2) {
+    if (list && list.length > 0) {
+        add_para(parts, text);
+        parts.push(
+            <table key={text + " table"} className="table table-bordered">
+                <tbody>
+                    { list.map(elt => <tr key={elt[c2]}><td><span className="pull-right">{elt[c1]}</span>{elt[c2]}</td></tr>) }
+                </tbody>
+            </table>);
+    }
+}
+
+export const BlockingMessage = (usage) => {
+    let parts = [ ];
+    let blocking = usage.Blocking;
+
+    if (!blocking)
+        return null;
+
+    add_usage_message(parts, blocking.PhysicalVolumes,
+                      _("This device is currently used for volume groups."),
+                      "Name", "VGroup");
+
+    add_usage_message(parts, blocking.MDRaidMembers,
+                      _("This device is currently used for RAID devices."),
+                      "Name", "MDRaid");
+
+    add_usage_message(parts, blocking.VDOs,
+                      _("This device is currently used for VDO devices."),
+                      "Name", "VDO");
+
+    if (parts.length > 0)
+        return <div>{ parts }</div>;
+    else
+        return null;
+};
+
+export const TeardownMessage = (usage) => {
+    let parts = [ ];
+    let teardown = usage.Teardown;
+
+    if (!teardown)
+        return null;
+
+    add_usage_message(parts, teardown.Mounts,
+                      _("This device has filesystems that are currently in use. Proceeding will unmount all filesystems on it."),
+                      "Name", "MountPoint");
+
+    add_usage_message(parts, teardown.PhysicalVolumes,
+                      _("This device is currently used for volume groups. Proceeding will remove it from its volume groups."),
+                      "Name", "VGroup");
+
+    add_usage_message(parts, teardown.MDRaidMembers,
+                      _("This device is currently used for RAID devices. Proceeding will remove it from its RAID devices."),
+                      "Name", "MDRaid");
+
+    let has_sessions = teardown.Sessions && teardown.Sessions.length > 0;
+    let has_services = teardown.Services && teardown.Services.length > 0;
+
+    if (has_sessions && has_services)
+        add_para(parts, _("The filesystem is in use by login sessions and system services. Proceeding will stop these."));
+    else if (has_sessions)
+        add_para(parts, _("The filesystem is in use by login sessions. Proceeding will stop these."));
+    else if (has_services)
+        add_para(parts, _("The filesystem is in use by system services. Proceeding will stop these."));
+
+    function add_units(list, key, h1, h2, h3, c1, c2, c3) {
+        if (list && list.length > 0) {
+            parts.push(
+                <table key={key} className="table table-bordered units-table">
+                    <thead>
+                        <tr>
+                            <th>{h1}</th>
+                            <th>{h2}</th>
+                            <th>{h3}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        { list.map(elt =>
+                            <tr key={elt[c3]}>
+                                <td>{elt[c1]}</td>
+                                <td className="cmd">{elt[c2]}</td>
+                                <td>{elt[c3]}</td>
+                            </tr>)
+                        }
+                    </tbody>
+                </table>);
+        }
+    }
+
+    add_units(teardown.Sessions, "sessions",
+              _("Session"), _("Process"), _("Active since"),
+              "Name", "Command", "Since");
+
+    add_units(teardown.Services, "services",
+              _("Service"), _("Unit"), _("Active since"),
+              "Name", "Unit", "Since");
+
+    if (parts.length > 0)
+        return <div className="modal-footer-teardown">{ parts }</div>;
+    else
+        return null;
 };

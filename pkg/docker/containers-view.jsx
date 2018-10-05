@@ -19,6 +19,9 @@
 
 'use strict';
 
+var React = require('react');
+var createReactClass = require('create-react-class');
+
 var cockpit = require('cockpit');
 var _ = cockpit.gettext;
 
@@ -27,14 +30,14 @@ var docker = require('./docker');
 var atomic = require('./atomic');
 var util = require('./util');
 var searchImage = require("./search");
-var React = require('react');
+
 var Listing = require('cockpit-components-listing.jsx');
 var Select = require('cockpit-components-select.jsx');
 var moment = require('moment');
 
 moment.locale(cockpit.language);
 
-var Dropdown = React.createClass({
+var Dropdown = createReactClass({
     getDefaultProps: function () {
         return {
             actions: [ { label: '' } ]
@@ -75,7 +78,7 @@ var Dropdown = React.createClass({
     }
 });
 
-var ContainerHeader = React.createClass({
+var ContainerHeader = createReactClass({
     getInitialState: function () {
         return {
             filter: 'running',
@@ -99,7 +102,7 @@ var ContainerHeader = React.createClass({
     render: function () {
         return (
             <div>
-                <Select.Select id="containers-containers-filter" initial="running" onChange={this.handleFilterChange}>
+                <Select.Select id="containers-containers-filter" initial={this.state.filter} onChange={this.handleFilterChange}>
                     <Select.SelectEntry data='all'>{_("Everything")}</Select.SelectEntry>
                     <Select.SelectEntry data='running'>{_("Images and running containers")}</Select.SelectEntry>
                 </Select.Select>
@@ -114,7 +117,7 @@ var ContainerHeader = React.createClass({
     }
 });
 
-var ContainerDetails = React.createClass({
+var ContainerDetails = createReactClass({
     render: function () {
         var container = this.props.container;
         return (
@@ -132,7 +135,7 @@ var ContainerDetails = React.createClass({
     }
 });
 
-var ContainerProblems = React.createClass({
+var ContainerProblems = createReactClass({
     onItemClick: function (event) {
         cockpit.jump(event.currentTarget.dataset.url, cockpit.transport.host);
     },
@@ -155,7 +158,7 @@ var ContainerProblems = React.createClass({
     }
 });
 
-var ContainerList = React.createClass({
+var ContainerList = createReactClass({
     getDefaultProps: function () {
         return {
             client: {},
@@ -371,7 +374,7 @@ var ContainerList = React.createClass({
     }
 });
 
-var ImageDetails = React.createClass({
+var ImageDetails = createReactClass({
     render: function () {
         var image = this.props.image;
         var created = moment.unix(image.Created);
@@ -385,11 +388,13 @@ var ImageDetails = React.createClass({
             ports = Object.keys(image.Config.ExposedPorts || {});
         }
 
+        var repotags = image.RepoTags || [];
+
         return (
             <div className='listing-ct-body'>
                 <dl>
                     <dt>{_("Id")}</dt>         <dd title={image.Id}>{ docker.truncate_id(image.Id) }</dd>
-                    <dt>{_("Tags")}</dt>       <dd>{ image.RepoTags.join(" ") }</dd>
+                    <dt>{_("Tags")}</dt>       <dd>{ repotags.join(" ") }</dd>
                     <dt>{_("Entrypoint")}</dt> <dd>{ util.quote_cmdline(entrypoint) }</dd>
                     <dt>{_("Command")}</dt>    <dd>{ util.quote_cmdline(command) }</dd>
                     <dt>{_("Created")}</dt>    <dd title={ created.toLocaleString() }>{ created.calendar() }</dd>
@@ -401,7 +406,7 @@ var ImageDetails = React.createClass({
     }
 });
 
-var ImageSecurity = React.createClass({
+var ImageSecurity = createReactClass({
     render: function () {
         var info = this.props.info;
         var text, rows;
@@ -443,7 +448,7 @@ var ImageSecurity = React.createClass({
     }
 });
 
-var ImageInline = React.createClass({
+var ImageInline = createReactClass({
     getInitialState: function () {
         return {
             vulnerableInfos: {}
@@ -498,7 +503,7 @@ var ImageInline = React.createClass({
     }
 });
 
-var ImageList = React.createClass({
+var ImageList = createReactClass({
     getDefaultProps: function () {
         return {
             client: {},
@@ -602,7 +607,7 @@ var ImageList = React.createClass({
             element = <div className="spinner" />;
         } else {
             element = <button className="btn btn-default btn-control-ct fa fa-play"
-                onClick={ this.showRunImageDialog.bind(this) }
+                onClick={ this.showRunImageDialog }
                 data-image={image.Id} />;
         }
 
@@ -637,7 +642,7 @@ var ImageList = React.createClass({
         }
 
         var actions = [
-            <button className="btn btn-danger btn-delete pficon pficon-delete"
+            <button key="delete" className="btn btn-danger btn-delete pficon pficon-delete"
                     onClick={ this.deleteImage.bind(this, image) } />
         ];
 
@@ -657,7 +662,7 @@ var ImageList = React.createClass({
 
         var imageRows = filtered.map(this.renderRow, this);
 
-        var getNewImageAction = <a role="link" tabIndex="0" onClick={this.handleSearchImageClick} className="card-pf-link-with-icon pull-right">
+        var getNewImageAction = <a key="new" role="link" tabIndex="0" onClick={this.handleSearchImageClick} className="card-pf-link-with-icon pull-right">
             <span className="pficon pficon-add-circle-o" />{_("Get new image")}
         </a>;
 
@@ -692,7 +697,7 @@ var ImageList = React.createClass({
                 <Listing.Listing title={_("Images")}
                     columnTitles={columnTitles}
                     emptyCaption={emptyCaption}
-                    actions={getNewImageAction}>
+                    actions={[ getNewImageAction ]}>
                     {imageRows}
                 </Listing.Listing>
                 {pendingRows}

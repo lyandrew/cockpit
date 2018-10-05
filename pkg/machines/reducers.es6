@@ -27,7 +27,6 @@ import {
     DELETE_UI_VM,
     DELETE_UNLISTED_VMS,
     SET_PROVIDER,
-    SET_REFRESH_INTERVAL,
     UNDEFINE_VM,
     UPDATE_ADD_VM,
     UPDATE_LIBVIRT_STATE,
@@ -57,11 +56,6 @@ function config(state, action) {
     switch (action.type) {
     case SET_PROVIDER:
         return Object.assign({}, state, { provider: action.provider });
-    case SET_REFRESH_INTERVAL: {
-        const newState = Object.assign({}, state);
-        newState.refreshInterval = action.refreshInterval;
-        return newState;
-    }
     case 'SET_HYPERVISOR_MAX_VCPU': {
         const newState = Object.assign({}, state);
         newState.hypervisorMaxVCPU = Object.assign({}, newState.hypervisorMaxVCPU, { [action.payload.connectionName]: action.payload.count });
@@ -160,13 +154,22 @@ function vms(state, action) {
         return replaceVm({ state, updatedVm, index: indexedVm.index });
     }
     case UNDEFINE_VM: {
-        return state
-                .filter(vm => (action.connectionName !== vm.connectionName || action.name != vm.name ||
-                    (action.transientOnly && vm.persistent)));
+        if (action.id)
+            return state
+                    .filter(vm => (action.connectionName !== vm.connectionName || action.id != vm.id ||
+                        (action.transientOnly && vm.persistent)));
+        else
+            return state
+                    .filter(vm => (action.connectionName !== vm.connectionName || action.name != vm.name ||
+                        (action.transientOnly && vm.persistent)));
     }
     case DELETE_UNLISTED_VMS: {
-        return state
-                .filter(vm => (action.connectionName !== vm.connectionName || action.vmNames.indexOf(vm.name) >= 0));
+        if (action.vmIDs)
+            return state
+                    .filter(vm => (action.connectionName !== vm.connectionName || action.vmIDs.indexOf(vm.id) >= 0));
+        else
+            return state
+                    .filter(vm => (action.connectionName !== vm.connectionName || action.vmNames.indexOf(vm.name) >= 0));
     }
     default: // by default all reducers should return initial state on unknown actions
         return state;
@@ -186,13 +189,12 @@ function systemInfo(state, action) {
     switch (action.type) {
     case UPDATE_OS_INFO_LIST: {
         if (action.osInfoList instanceof Array) {
-            state.osInfoList = [...action.osInfoList];
+            return Object.assign({}, state, { osInfoList: action.osInfoList });
         }
         return state;
     }
     case UPDATE_LIBVIRT_STATE: {
-        state.libvirtService = Object.assign({}, state.libvirtService, action.state);
-        return state;
+        return Object.assign({}, state, { libvirtService:  Object.assign({}, state.libvirtService, action.state) });
     }
     default: // by default all reducers should return initial state on unknown actions
         return state;
@@ -217,12 +219,25 @@ function storagePools(state, action) {
         const { connectionName, pools } = action.payload;
 
         const newState = Object.assign({}, state);
-        newState[connectionName] = {};
+        if (!(connectionName in newState))
+            newState[connectionName] = {};
+        else
+            newState[connectionName] = Object.assign({}, state[connectionName]);
 
-        // Array of strings (pool names)
-        pools.forEach(poolName => {
-            newState[connectionName][poolName] = []; // will be filled by UPDATE_STORAGE_VOLUMES
-        });
+        // Delete pools from state that are not in the payload
+        for (var poolCurrent in newState[connectionName]) {
+            if (!pools.includes(poolCurrent)) {
+                delete newState[connectionName][poolCurrent];
+            }
+        }
+
+        // Add new pools to state
+        for (var i in pools) {
+            let poolName = pools[i];
+            if (!(poolName in newState[connectionName])) {
+                newState[connectionName][poolName] = [];
+            }
+        }
 
         return newState;
     }
@@ -246,28 +261,33 @@ function ui(state, action) {
         vms: {}, // transient property
     };
     const addVm = () => {
-        const oldVm = state.vms[action.vm.name];
+        let newState = Object.assign({}, state);
+        newState.vms = Object.assign({}, state.vms);
+        const oldVm = newState.vms[action.vm.name];
         const vm = Object.assign({}, oldVm, action.vm);
 
-        state.vms = Object.assign({}, state.vms, {
+        newState.vms = Object.assign({}, newState.vms, {
             [action.vm.name]: vm,
         });
+        return newState;
     };
 
     switch (action.type) {
     case ADD_UI_VM: {
-        addVm();
-        return state;
+        return addVm();
     }
     case UPDATE_UI_VM: {
-        if (state.vms[action.vm.name]) {
-            addVm();
+        if (state.vms[action.vm.name] && state.vms[action.vm.name].isUi) {
+            return addVm();
         }
         return state;
     }
-    case DELETE_UI_VM:
-        delete state.vms[action.vm.name];
-        return state;
+    case DELETE_UI_VM: {
+        let newState = Object.assign({}, state);
+        newState.vms = Object.assign({}, state.vms);
+        delete newState.vms[action.vm.name];
+        return newState;
+    }
     case ADD_NOTIFICATION: {
         const notification = typeof action.notification === 'string' ? { message: action.notification } : action.notification;
         const notifs = state.notifications;

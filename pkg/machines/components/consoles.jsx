@@ -16,12 +16,13 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { PropTypes } from "react";
+import React from 'react';
+import PropTypes from 'prop-types';
 import cockpit from 'cockpit';
-import Select from "cockpit-components-select.jsx";
+import * as Select from "cockpit-components-select.jsx";
 
 import SerialConsole from './serialConsole.jsx';
-import Vnc, { VncActions } from './vnc.jsx';
+import Vnc from './vnc.jsx';
 import DesktopConsole from './desktopConsole.jsx';
 
 import { logDebug } from '../helpers.es6';
@@ -72,19 +73,21 @@ const ConsoleSelector = ({ onChange, selected, isSerialConsole, vm }) => {
 
     return (
         <table className='form-table-ct'>
-            <tr>
-                <td className='top'>
-                    <label>{_("Console Type")}</label>
-                </td>
-                <td>
-                    <Select.StatelessSelect id="console-type-select"
-                                            selected={selected}
-                                            onChange={onChange}
-                                            extraClass='console-type-select'>
-                        {entries}
-                    </Select.StatelessSelect>
-                </td>
-            </tr>
+            <tbody>
+                <tr>
+                    <td className='top'>
+                        <label>{_("Console Type")}</label>
+                    </td>
+                    <td>
+                        <Select.StatelessSelect id="console-type-select"
+                                                selected={selected}
+                                                onChange={onChange}
+                                                extraClass='console-type-select'>
+                            {entries}
+                        </Select.StatelessSelect>
+                    </td>
+                </tr>
+            </tbody>
         </table>
     );
 };
@@ -193,36 +196,26 @@ class Consoles extends React.Component {
         };
 
         logDebug('Consoles render, this.state.consoleType: ', this.state.consoleType);
-        let console = null;
-        let actions = null;
+
+        const consoleSelector = (
+            <ConsoleSelector onChange={this.onConsoleTypeSelected}
+                             isSerialConsole={!!serialConsoleCommand}
+                             selected={this.state.consoleType}
+                             vm={vm} />
+        );
+
         switch (this.state.consoleType) {
         case 'serial-browser':
-            console = <SerialConsole vmName={vm.name} spawnArgs={serialConsoleCommand} />;
-            break;
+            return <SerialConsole vmName={vm.name} spawnArgs={serialConsoleCommand}>{consoleSelector}</SerialConsole>;
         case 'vnc-browser':
-            console = <Vnc vm={vm} consoleDetail={this.state.consoleDetail} />;
-            actions = <VncActions vm={vm} />;
-            break;
+            return <Vnc vm={vm} consoleDetail={this.state.consoleDetail}>{consoleSelector}</Vnc>;
         case 'desktop':
-            console = <DesktopConsole vm={vm} onDesktopConsole={onDesktopConsole} config={config} />;
-            break;
+            return <DesktopConsole vm={vm} onDesktopConsole={onDesktopConsole} config={config}>{consoleSelector}</DesktopConsole>;
         default:
-            console = <NoConsoleDefined />;
             break;
         }
 
-        return (
-            <div>
-                <span className='console-menu'>
-                    <ConsoleSelector onChange={this.onConsoleTypeSelected}
-                        isSerialConsole={!!serialConsoleCommand}
-                        selected={this.state.consoleType}
-                        vm={vm} />
-                    {actions}
-                </span>
-                {console}
-            </div>
-        );
+        return (<NoConsoleDefined />);
     }
 }
 Consoles.propTypes = {

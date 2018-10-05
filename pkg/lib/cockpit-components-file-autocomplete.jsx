@@ -21,16 +21,19 @@
 
 var cockpit = require("cockpit");
 var React = require("react");
+var PropTypes = require("prop-types");
+var createReactClass = require('create-react-class');
+
 var _ = cockpit.gettext;
 require("./cockpit-components-file-autocomplete.css");
 
-var FileAutoComplete = React.createClass({
+var FileAutoComplete = createReactClass({
     propTypes: {
-        id: React.PropTypes.string,
-        placeholder: React.PropTypes.string,
-        value: React.PropTypes.string,
-        superuser: React.PropTypes.string,
-        onChange: React.PropTypes.func,
+        id: PropTypes.string,
+        placeholder: PropTypes.string,
+        value: PropTypes.string,
+        superuser: PropTypes.string,
+        onChange: PropTypes.func,
     },
     getInitialState () {
         var value = this.props.value || "";

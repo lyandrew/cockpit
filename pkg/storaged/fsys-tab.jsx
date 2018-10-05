@@ -17,14 +17,15 @@
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
 
-"use strict";
+import { dialog_open, TextInput } from "./dialogx.jsx";
+
+var React = require("react");
+var createReactClass = require('create-react-class');
 
 var cockpit = require("cockpit");
-var dialog = require("./dialog");
 var utils = require("./utils.js");
 var $ = require("jquery");
 
-var React = require("react");
 var StorageControls = require("./storage-controls.jsx");
 var FormatDialog = require("./format-dialog.jsx");
 
@@ -34,7 +35,7 @@ var FormatButton = FormatDialog.FormatButton;
 
 var _ = cockpit.gettext;
 
-var FilesystemTab = React.createClass({
+var FilesystemTab = createReactClass({
     onSamplesChanged: function () {
         this.setState({});
     },
@@ -65,12 +66,10 @@ var FilesystemTab = React.createClass({
         }
 
         function rename_dialog() {
-            dialog.open({ Title: _("Filesystem Name"),
+            dialog_open({ Title: _("Filesystem Name"),
                           Fields: [
-                              { TextInput: "name",
-                                Title: _("Name"),
-                                Value: block.IdLabel
-                              },
+                              TextInput("name", _("Name"),
+                                        { value: block.IdLabel })
                           ],
                           Action: {
                               Title: _("Apply"),
@@ -117,8 +116,8 @@ var FilesystemTab = React.createClass({
         }
 
         function mounting_dialog() {
-            dialog.open({ Title: _("Filesystem Mounting"),
-                          Fields: FormatDialog.mounting_dialog_fields(!!old_config, old_dir, old_opts),
+            dialog_open({ Title: _("Filesystem Mounting"),
+                          Fields: FormatDialog.mounting_dialogx_fields(!!old_config, old_dir, old_opts),
                           Action: {
                               Title: _("Apply"),
                               action: function (vals) {

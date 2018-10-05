@@ -265,7 +265,7 @@ class TestSystemInfo(MachineCase):
             b.mouse('#systime-tooltip', 'mouseout')
             b.wait_not_present('#systime-tooltip ~ div.tooltip')
 
-    @skipImage("No NTP servers config", "centos-7", "continuous-atomic", "rhel-7-5", "rhel-7-5-distropkg", "rhel-7-6", "rhel-7-6-distropkg", "rhel-atomic")
+    @skipImage("No NTP servers config", "centos-7", "continuous-atomic", "rhel-7-5", "rhel-7-5-distropkg", "rhel-7-6", "rhel-7-6-distropkg", "rhel-x", "rhel-atomic")
     def testTimeServers(self):
         m = self.machine
         b = self.browser
@@ -400,7 +400,6 @@ class TestPcp(packagelib.PackageCase):
 
     @skipImage("cockpit-system doesn't have the install-on-demand feature", "rhel-7-5-distropkg")
     @skipImage("doesn't have pcp", "debian-stable")
-    @skipImage("https://bugzilla.redhat.com/show_bug.cgi?id=1600452", "rhel-x")
     def testEnablePcpLink(self):
         m = self.machine
         b = self.browser

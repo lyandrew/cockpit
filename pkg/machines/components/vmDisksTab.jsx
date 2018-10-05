@@ -16,11 +16,14 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { PropTypes } from 'react';
+import React from 'react';
+import PropTypes from 'prop-types';
 import cockpit from 'cockpit';
+
 import { Listing, ListingRow } from 'cockpit-components-listing.jsx';
 import { Info } from './notification/inlineNotification.jsx';
 import { convertToUnit, toReadableNumber, units } from "../helpers.es6";
+import RemoveDiskAction from './diskRemove.jsx';
 
 const _ = cockpit.gettext;
 
@@ -52,7 +55,7 @@ const VmDiskCell = ({ value, id }) => {
     );
 };
 
-const VmDisksTab = ({ idPrefix, disks, actions, renderCapacity, notificationText }) => {
+const VmDisksTab = ({ idPrefix, vm, disks, actions, renderCapacity, notificationText, dispatch, provider }) => {
     let notification = null;
     const columnTitles = [_("Device"), _("Target")];
     let renderCapacityUsed, renderReadOnly;
@@ -86,25 +89,36 @@ const VmDisksTab = ({ idPrefix, disks, actions, renderCapacity, notificationText
                 {disks.map(disk => {
                     const idPrefixRow = `${idPrefix}-${disk.target || disk.device}`;
                     const columns = [
-                        { name: <VmDiskCell value={disk.device} id={`${idPrefixRow}-device`} />, 'header': true },
-                        <VmDiskCell value={disk.target} id={`${idPrefixRow}-target`} />
+                        { name: <VmDiskCell value={disk.device} id={`${idPrefixRow}-device`} key={`${idPrefixRow}-device`} />, 'header': true },
+                        <VmDiskCell value={disk.target} id={`${idPrefixRow}-target`} key={`${idPrefixRow}-target`} />
                     ];
 
                     if (renderCapacity) {
                         if (renderCapacityUsed) {
-                            columns.push(<StorageUnit value={disk.used} id={`${idPrefixRow}-used`} />);
+                            columns.push(<StorageUnit value={disk.used} id={`${idPrefixRow}-used`} key={`${idPrefixRow}-used`} />);
                         }
-                        columns.push(<StorageUnit value={disk.capacity} id={`${idPrefixRow}-capacity`} />);
+                        columns.push(<StorageUnit value={disk.capacity} id={`${idPrefixRow}-capacity`} key={`${idPrefixRow}-capacity`} />);
                     }
 
-                    columns.push(<VmDiskCell value={disk.bus} id={`${idPrefixRow}-bus`} />);
+                    columns.push(<VmDiskCell value={disk.bus} id={`${idPrefixRow}-bus`} key={`${idPrefixRow}-bus`} />);
 
                     if (renderReadOnly) {
                         columns.push(disk.readonly ? _("yes") : _("no"));
                     }
 
                     columns.push(disk.diskSourceCell);
-                    return (<ListingRow columns={columns} navigateToItem={disk.onNavigate} />);
+
+                    if (provider === 'LibvirtDBus') {
+                        const removeDiskAction = RemoveDiskAction({
+                            dispatch,
+                            vm,
+                            target: disk.target,
+                            idPrefixRow,
+                        });
+                        columns.push(<div>{removeDiskAction}</div>);
+                    }
+
+                    return (<ListingRow key={idPrefixRow} columns={columns} navigateToItem={disk.onNavigate} />);
                 })}
             </Listing>
         </div>
@@ -113,10 +127,11 @@ const VmDisksTab = ({ idPrefix, disks, actions, renderCapacity, notificationText
 
 VmDisksTab.propTypes = {
     idPrefix: PropTypes.string.isRequired,
-    actions: PropTypes.arrayOf(React.PropTypes.node),
+    actions: PropTypes.arrayOf(PropTypes.node),
     disks: PropTypes.array.isRequired,
     renderCapacity: PropTypes.bool,
     notificationText: PropTypes.string,
+    provider: PropTypes.string,
 };
 
 export default VmDisksTab;

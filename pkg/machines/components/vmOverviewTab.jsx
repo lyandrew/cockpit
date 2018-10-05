@@ -16,8 +16,9 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
+import React from 'react';
+import PropTypes from 'prop-types';
 import cockpit from 'cockpit';
-import React, { PropTypes } from "react";
 
 const _ = cockpit.gettext;
 
@@ -42,7 +43,7 @@ const Items = ({ items, idPrefix, divider, colClass }) => {
                     }
 
                     return (
-                        <div className={`${colClass} ${item.className || ''}`}>
+                        <div key={item.title} className={`${colClass} ${item.className || ''}`}>
                             {content}
                         </div>
                     );
@@ -62,7 +63,7 @@ const VmOverviewTab = ({ message, idPrefix, items, extraItems }) => {
             <Items items={items} idPrefix={idPrefix} divider={extraItems ? 6 : 12} />
             {extraItems && extraItems.map(col =>
                 (<Items items={col} idPrefix={idPrefix} divider='3'
-                        colClass='col-lg-12 col-md-12 col-sm-12 col-xs-12' />))}
+                        colClass='col-lg-12 col-md-12 col-sm-12 col-xs-12' key={col} />))}
         </div>);
 };
 

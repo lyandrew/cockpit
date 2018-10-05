@@ -38,14 +38,6 @@ var info = {
             "machines/machines.less",
         ],
 
-        "machines/vnc": [
-            "machines/vnc.js",
-        ],
-
-        "ovirt/vnc": [
-            "ovirt/vnc.js",
-        ],
-
         "networkmanager/network": [
             "networkmanager/interfaces.js",
             "networkmanager/utils.js"
@@ -205,16 +197,12 @@ var info = {
 
         "machines/base.css",
         "machines/index.html",
-        "machines/vnc.html",
-        "machines/vnc.css",
 
         "networkmanager/index.html",
         "networkmanager/firewall.html",
         "networkmanager/manifest.json",
 
         "ovirt/index.html",
-        "ovirt/vnc.html",
-        "ovirt/vnc.css",
 
         "packagekit/index.html",
 
@@ -378,27 +366,11 @@ info.tests.forEach(function(test) {
     }
 });
 
-/* Just for the sake of tests, jquery.js and cockpit.js files */
-if (!section || section.indexOf("base1") === 0) {
-    files.push({
-        from: srcdir + path.sep + "src/base1/cockpit.js",
-        to: "base1/cockpit.js"
-    }, {
-        from: nodedir + path.sep + "jquery/dist/jquery.js",
-        to: "base1/jquery.js"
-    }, {
-        from: srcdir + path.sep + "po/po.js",
-        to: "shell/po.js"
-    });
-}
-
 var aliases = {
     "angular": "angular/angular.js",
     "angular-route": "angular-route/angular-route.js",
     "d3": "d3/d3.js",
     "moment": "moment/moment.js",
-    "react": "react-lite/dist/react-lite.js",
-    "react-dom": "react-lite/dist/react-lite.js",
     "term": "term.js-cockpit/src/term.js"
 };
 
@@ -446,6 +418,11 @@ module.exports = {
                 exclude: /\/node_modules\/.*\//, // exclude external dependencies
                 loader: 'strict' // Adds "use strict"
             },
+            /* these are called *.js, but are ES6 */
+            {
+                test: /\/node_modules\/@novnc.*\.js$/,
+                loader: "babel-loader"
+            },
             {
                 test: /\.jsx$/,
                 loader: "babel-loader"
@@ -471,11 +448,6 @@ module.exports = {
                 loader: "exports?angular"
             }
         ],
-
-        /* The stuff in noVNC are plain ol javascript */
-        noParse: [
-            /\/node_modules\/noVNC\//
-        ]
     },
 
     jshint: {

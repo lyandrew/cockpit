@@ -228,6 +228,11 @@ cockpit_channel_response_close (CockpitChannel *channel,
           g_debug ("%s: not found", self->logname);
           cockpit_web_response_error (self->response, 404, NULL, NULL);
         }
+      else if (g_str_equal (problem, "access-denied"))
+        {
+          g_debug ("%s: forbidden", self->logname);
+          cockpit_web_response_error (self->response, 403, NULL, NULL);
+        }
       else if (g_str_equal (problem, "no-host") ||
                g_str_equal (problem, "no-cockpit") ||
                g_str_equal (problem, "unknown-hostkey") ||
@@ -265,8 +270,13 @@ object_to_headers (JsonObject *object,
 
   g_return_if_fail (value != NULL);
 
-  if (g_ascii_strcasecmp (header, "Content-Length") == 0 ||
-      g_ascii_strcasecmp (header, "Connection") == 0)
+  /* Remove hop-by-hop headers. See RFC 2068 */
+  if (g_ascii_strcasecmp (header, "Connection") == 0 ||
+      g_ascii_strcasecmp (header, "Keep-Alive") == 0 ||
+      g_ascii_strcasecmp (header, "Public") == 0 ||
+      g_ascii_strcasecmp (header, "Proxy-Authenticate") == 0 ||
+      g_ascii_strcasecmp (header, "Transfer-Encoding") == 0 ||
+      g_ascii_strcasecmp (header, "Upgrade") == 0)
     return;
 
   g_hash_table_insert (headers, g_strdup (header), g_strdup (value));

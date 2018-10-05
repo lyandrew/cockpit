@@ -16,8 +16,9 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
+import React from 'react';
+import PropTypes from 'prop-types';
 import cockpit from 'cockpit';
-import React, { PropTypes } from "react";
 
 import {
     logDebug,
@@ -85,29 +86,30 @@ class VmUsageTab extends React.Component {
             height,
         };
 
-        return (<table>
-            <tr>
-                <td>
-                    <DonutChart data={memChartData} size={chartSize} width='8' tooltipText=' '
-                        primaryTitle={toReadableNumber(convertToUnit(rssMem, units.KiB, units.GiB))}
-                        secondaryTitle='GiB'
-                        caption={`used from ${cockpit.format_bytes(memTotal * 1024)} memory`} />
-                </td>
+        return (
+            <table>
+                <tbody>
+                    <tr>
+                        <td>
+                            <DonutChart data={memChartData} size={chartSize} width='8' tooltipText=' '
+                                    primaryTitle={toReadableNumber(convertToUnit(rssMem, units.KiB, units.GiB))}
+                                    secondaryTitle='GiB'
+                                    caption={`used from ${cockpit.format_bytes(memTotal * 1024)} memory`} />
+                        </td>
 
-                <td>
-                    <DonutChart data={cpuChartData} size={chartSize} width='8' tooltipText=' '
-                        primaryTitle={cpuUsage} secondaryTitle='%'
-                        caption={`used from ${totalCpus} vCPUs`} />
-                </td>
-            </tr>
-        </table>
-
-        );
+                        <td>
+                            <DonutChart data={cpuChartData} size={chartSize} width='8' tooltipText=' '
+                                    primaryTitle={cpuUsage} secondaryTitle='%'
+                                    caption={`used from ${totalCpus} vCPUs`} />
+                        </td>
+                    </tr>
+                </tbody>
+            </table>);
     }
 }
 
 VmUsageTab.propTypes = {
-    vm: React.PropTypes.object.isRequired,
+    vm: PropTypes.object.isRequired,
     onUsageStartPolling: PropTypes.func.isRequired,
     onUsageStopPolling: PropTypes.func.isRequired,
 };

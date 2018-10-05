@@ -16,8 +16,12 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with Cockpit; If not, see <http://www.gnu.org/licenses/>.
  */
+import React from 'react';
+import PropTypes from 'prop-types';
 import cockpit from 'cockpit';
-import React, { PropTypes } from "react";
+
+import { ListingRow } from "cockpit-components-listing.jsx";
+
 import {
     rephraseUI,
     vmId,
@@ -30,7 +34,6 @@ import VmOverviewTab from '../vmOverviewTabLibvirt.jsx';
 import VmActions from './vmActions.jsx';
 import StateIcon from './stateIcon.jsx';
 import VmUsageTab from './vmUsageTab.jsx';
-import { ListingRow } from "cockpit-components-listing.jsx";
 
 const _ = cockpit.gettext;
 
@@ -41,13 +44,14 @@ const Vm = ({ vm, config, hostDevices, storagePools, onStart, onInstall, onShutd
     const stateAlert = vm.lastMessage && (<span className='pficon-warning-triangle-o machines-status-alert' />);
     const stateIcon = (<StateIcon state={vm.state} config={config} valueId={`${vmId(vm.name)}-state`} extra={stateAlert} />);
 
+    const overviewTabName = (<div id={`${vmId(vm.name)}-overview`}>{_("Overview")}</div>);
     const usageTabName = (<div id={`${vmId(vm.name)}-usage`}>{_("Usage")}</div>);
     const disksTabName = (<div id={`${vmId(vm.name)}-disks`}>{_("Disks")}</div>);
     const networkTabName = (<div id={`${vmId(vm.name)}-networks`}>{_("Networks")}</div>);
     const consolesTabName = (<div id={`${vmId(vm.name)}-consoles`}>{_("Consoles")}</div>);
 
     let tabRenderers = [
-        {name: _("Overview"), renderer: VmOverviewTab, data: { vm, config, dispatch }},
+        {name: overviewTabName, renderer: VmOverviewTab, data: { vm, config, dispatch }},
         {name: usageTabName, renderer: VmUsageTab, data: { vm, onUsageStartPolling, onUsageStopPolling }, presence: 'onlyActive'},
         {name: disksTabName, renderer: VmDisksTab, data: { vm, config, storagePools, onUsageStartPolling, onUsageStopPolling, dispatch }, presence: 'onlyActive'},
         {name: networkTabName, renderer: VmNetworkTab, data: { vm, dispatch, hostDevices }},

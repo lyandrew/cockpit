@@ -21,6 +21,8 @@ var $ = require("jquery");
 var cockpit = require("cockpit");
 
 var React = require("react");
+var ReactDOM = require("react-dom");
+var createReactClass = require('create-react-class');
 var Mustache = require("mustache");
 var authorized_keys = require("./authorized-keys");
 
@@ -271,7 +273,7 @@ function is_user_in_group(user, group) {
     return false;
 }
 
-var AccountItem = React.createClass({
+var AccountItem = createReactClass({
     displayName: 'AccountItem',
     click: function(ev) {
         if (ev && ev.button === 0)
@@ -286,7 +288,7 @@ var AccountItem = React.createClass({
     }
 });
 
-var AccountList = React.createClass({
+var AccountList = createReactClass({
     displayName: 'AccountList',
     render: function() {
         var i, items = [];
@@ -353,7 +355,7 @@ PageAccounts.prototype = {
                      account["shell"] === '/bin/false');
         });
 
-        React.render(
+        ReactDOM.render(
             React.createElement(AccountList, { accounts: accounts }),
             document.getElementById('accounts-list')
         );
@@ -963,6 +965,7 @@ PageAccount.prototype = {
                                            { "roles": this.roles, "changed": this.roles_changed });
                 $('#account-change-roles-roles').html(html);
                 $('#account-roles').parents('tr').show();
+                $('#account-roles [data-toggle="tooltip"]').tooltip();
                 $("#account-change-roles-roles :input")
                     .on("change", $.proxy (this, "change_role"));
             } else {
@@ -997,6 +1000,9 @@ PageAccount.prototype = {
 
         var proc;
         var checked = $(ev.target).prop('checked');
+        var input_elements =
+            $('#account button:not([disabled]), #account input:not([disabled]), #account a:not([disabled])');
+        input_elements.prop('disabled', true);
         if (checked) {
             proc = cockpit.spawn(["/usr/sbin/usermod", this.account["name"], "-G", id, "-a"],
                                  { "superuser": "require", err: "message" });
@@ -1013,7 +1019,9 @@ PageAccount.prototype = {
             console.log(data);
             self.roles_changed = true;
             self.update();
-        }, show_unexpected_error);
+        }, show_unexpected_error).finally(function() {
+            input_elements.prop('disabled', false);
+        });
     },
 
     real_name_edited: function() {
@@ -1038,7 +1046,9 @@ PageAccount.prototype = {
 
         // TODO: unwanted chars check
         var value = name.val();
-
+        var input_elements =
+            $('#account button:not([disabled]), #account input:not([disabled]), #account a:not([disabled])');
+        input_elements.prop('disabled', true);
         cockpit.spawn(["/usr/sbin/usermod", self.account["name"], "--comment", value],
                       { "superuser": "try", err: "message"})
            .done(function(data) {
@@ -1046,13 +1056,18 @@ PageAccount.prototype = {
                self.update();
                name.removeAttr("data-dirty");
            })
-           .fail(show_unexpected_error);
+           .fail(show_unexpected_error).finally(function() {
+               input_elements.prop('disabled', false);
+           });
     },
 
     change_locked: function(verify_status, desired_lock_state) {
         desired_lock_state = desired_lock_state !== null ?
             desired_lock_state : $('#account-locked').prop('checked');
         var self = this;
+        var input_elements =
+            $('#account button:not([disabled]), #account input:not([disabled]), #account a:not([disabled])');
+        input_elements.prop('disabled', true);
         cockpit.spawn(["/usr/sbin/usermod",
                        this.account["name"],
                        desired_lock_state ? "--lock" : "--unlock"], { "superuser": "require", err: "message"})
@@ -1074,7 +1089,9 @@ PageAccount.prototype = {
                         }
                     });
                 })
-           .fail(show_unexpected_error);
+           .fail(show_unexpected_error).finally(function() {
+               input_elements.prop('disabled', false);
+           });
     },
 
     set_password: function() {
@@ -1093,10 +1110,15 @@ PageAccount.prototype = {
     },
 
     logout_account: function() {
+        var input_elements =
+            $('#account button:not([disabled]), #account input:not([disabled]), #account a:not([disabled])');
+        input_elements.prop('disabled', true);
         cockpit.spawn(["/usr/bin/loginctl", "terminate-user", this.account["name"]],
                       { "superuser": "try", err: "message"})
            .done($.proxy (this, "get_logged"))
-           .fail(show_unexpected_error);
+           .fail(show_unexpected_error).finally(function() {
+               input_elements.prop('disabled', false);
+           });
 
     },
 };

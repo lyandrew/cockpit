@@ -19,6 +19,7 @@
 
 var cockpit = require("cockpit");
 var React = require("react");
+var ReactDOM = require("react-dom");
 var subscriptionsClient = require("./subscriptions-client");
 var subscriptionsRegister = require("./subscriptions-register.jsx");
 var subscriptionsView = require("./subscriptions-view.jsx");
@@ -60,8 +61,6 @@ function openRegisterDialog() {
                     registerDialogDetails[prop] = data.target.checked;
                 } else {
                     registerDialogDetails[prop] = data.target.value;
-                    // input from the ui, so we don't need to re-render
-                    return;
                 }
             } else {
                 registerDialogDetails[prop] = data;
@@ -97,7 +96,7 @@ function initStore(rootElement) {
     subscriptionsClient.init();
 
     dataStore.render = function() {
-        React.render(React.createElement(
+        ReactDOM.render(React.createElement(
             subscriptionsView.page,
             {
                 status: subscriptionsClient.subscriptionStatus.status,

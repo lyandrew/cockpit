@@ -49,6 +49,21 @@ for x in $(seq 1 60); do
 done
 """
 
+START_VM_SCRIPT = """
+set -ex
+VM_ID=$(%(api)s https://%(addr)s/ovirt-engine/api/vms/ | xmllint --xpath "string(/vms/vm[name='VM']/@id)" -)
+for x in $(seq 1 60); do
+    if [ "$(%(api)s https://%(addr)s/ovirt-engine/api/vms/ | xmllint --xpath "string(/vms/vm[name='VM']/status)" -)" = "down" ]; then
+        %(api)s -X POST -d "<action/>"  "https://%(addr)s/ovirt-engine/api/vms/$VM_ID/start" 1>/dev/null
+        while [ "$(%(api)s https://%(addr)s/ovirt-engine/api/vms/ | xmllint --xpath "string(/vms/vm[name='VM']/status)" -)" = "wait_for_launch" ]; do
+            sleep 5
+        done
+    else
+        break
+    fi
+done
+"""
+
 TEST_VDSM_CONF_CONTENT = "Dummy content of the vdsm.conf file"
 
 @skipImage("No oVirt release", "continuous-atomic", "debian-stable", "debian-testing", "fedora-i386", "fedora-atomic", "rhel-atomic", "fedora-testing", "ubuntu-1604", "ubuntu-stable")
@@ -75,9 +90,7 @@ class TestOVirtMachines(MachineCase):
         m.execute(script=WAIT_SCRIPT % args, timeout=1000)
 
         # Run the prepared VM
-        vmid = m.execute("%(api)s https://%(addr)s/ovirt-engine/api/vms/ | xmllint --xpath \"string(/vms/vm[name=\'VM\']/@id)\" -" % args)
-        self.assertNotEqual(vmid, "")
-        m.execute("%(api)s -X POST -d \"<action/>\"  https://%(addr)s/ovirt-engine/api/vms/" % args + vmid + "/start")
+        m.execute(script=START_VM_SCRIPT % args, timeout=1000)
 
         self.enforce_cockpit_ovirt()
         self.hack_for_missing_vdsm()
@@ -225,7 +238,7 @@ class TestOVirtMachines(MachineCase):
         b.wait_present("button:contains('Create VM')") # try again
         b.click("button:contains('Create VM')")
         b.wait_present("input.form-control")
-        b.set_val("input.form-control", "myVMFromBlankTemplate")
+        b.set_input_text("input.form-control", "myVMFromBlankTemplate")
 
         # Workaround to speed-up whole test execution - should be in setUp() but effectively needed up here.
         self.wait_for_dc() # make sure the ovirt's DC is up before new VM is created
@@ -235,7 +248,7 @@ class TestOVirtMachines(MachineCase):
         b.wait_present("button:contains('Create VM')")
         b.click("button:contains('Create VM')")
         b.wait_present("input.form-control")
-        b.set_val("input.form-control", "VM") # the 'VM' machine exists already
+        b.set_input_text("input.form-control", "VM") # the 'VM' machine exists already
         # assuming the DC is still up - otherwise its environment issue
         b.click("button:contains('Create')") # expected to fail here
         b.wait_present("#clustervm-Blank-actionerror")
@@ -258,7 +271,8 @@ class TestOVirtMachines(MachineCase):
         b.click("#ovirt-topnav-vdsm")
         b.wait_in_text("body", "Edit the vdsm.conf")
         b.wait_present("#vdsmview-data-loaded")
-        b.set_val("textarea", TEST_VDSM_CONF_CONTENT)
+        b.wait_present("textarea")
+        b.set_input_text("textarea", TEST_VDSM_CONF_CONTENT)
         b.click("button:contains('Save')")
         b.wait_present("button:contains('OK')")
         b.click("button:contains('OK')")  # Limitation of this test env: In fact self.machine is updated and not the VDSM, see hack_for_missing_vdsm().
@@ -332,9 +346,9 @@ class TestOVirtMachines(MachineCase):
         b.is_present(".machines-vcpu-caution")
 
         # Set new socket value
-        b.set_val("#socketsInput", "2")
-        b.set_val("#coresInput", "1")
-        b.set_val("#threadsInput", "2")
+        b.set_input_text("#socketsInput", "2")
+        b.set_input_text("#coresInput", "1")
+        b.set_input_text("#threadsInput", "2")
 
         b.wait_val("#machines-vcpu-count-field", "4")
 

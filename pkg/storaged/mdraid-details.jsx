@@ -23,7 +23,7 @@ import utils from "./utils.js";
 import { StdDetailsLayout } from "./details.jsx";
 import Content from "./content-views.jsx";
 import { StorageButton, StorageBlockNavLink, StorageOnOff } from "./storage-controls.jsx";
-import dialog from "./dialog.js";
+import { dialog_open, SelectSpaces, BlockingMessage, TeardownMessage } from "./dialogx.jsx";
 
 const _ = cockpit.gettext;
 
@@ -41,21 +41,17 @@ class MDRaidSidebar extends React.Component {
         }
 
         function add_disk() {
-            dialog.open({ Title: _("Add Disks"),
+            dialog_open({ Title: _("Add Disks"),
                           Fields: [
-                              { SelectMany: "disks",
-                                Title: _("Disks"),
-                                Options: (
-                                    utils.get_available_spaces(client)
-                                            .filter(filter_inside_mdraid)
-                                            .map(utils.available_space_to_option)
-                                ),
-                                EmptyWarning: _("No disks are available."),
-                                validate: function (disks) {
-                                    if (disks.length === 0)
-                                        return _("At least one disk is needed.");
-                                }
-                              }
+                              SelectSpaces("disks", _("Disks"),
+                                           {
+                                               empty_warning: _("No disks are available."),
+                                               validate: function (disks) {
+                                                   if (disks.length === 0)
+                                                       return _("At least one disk is needed.");
+                                               },
+                                               spaces: utils.get_available_spaces(client).filter(filter_inside_mdraid)
+                                           })
                           ],
                           Action: {
                               Title: _("Add"),
@@ -125,7 +121,7 @@ class MDRaidSidebar extends React.Component {
             }
 
             return (
-                <tr>
+                <tr key={block.path}>
                     <td className="storage-icon">
                         <div><img src="images/storage-disk.png" /></div>
                     </td>
@@ -234,18 +230,16 @@ export class MDRaidDetails extends React.Component {
             var usage = utils.get_active_usage(client, block ? block.path : "");
 
             if (usage.Blocking) {
-                dialog.open({ Title: cockpit.format(_("$0 is in active use"), utils.mdraid_name(mdraid)),
-                              Blocking: usage.Blocking,
-                              Fields: [ ]
+                dialog_open({ Title: cockpit.format(_("$0 is in active use"), utils.mdraid_name(mdraid)),
+                              Body: BlockingMessage(usage),
                 });
                 return;
             }
 
             if (usage.Teardown) {
-                dialog.open({ Title: cockpit.format(_("Please confirm stopping of $0"),
+                dialog_open({ Title: cockpit.format(_("Please confirm stopping of $0"),
                                                     utils.mdraid_name(mdraid)),
-                              Teardown: usage.Teardown,
-                              Fields: [ ],
+                              Footer: TeardownMessage(usage),
                               Action: {
                                   Title: _("Stop Device"),
                                   action: function () {
@@ -288,17 +282,15 @@ export class MDRaidDetails extends React.Component {
             var usage = utils.get_active_usage(client, block ? block.path : "");
 
             if (usage.Blocking) {
-                dialog.open({ Title: cockpit.format(_("$0 is in active use"), utils.mdraid_name(mdraid)),
-                              Blocking: usage.Blocking,
-                              Fields: [ ]
+                dialog_open({ Title: cockpit.format(_("$0 is in active use"), utils.mdraid_name(mdraid)),
+                              Body: BlockingMessage(usage)
                 });
                 return;
             }
 
-            dialog.open({ Title: cockpit.format(_("Please confirm deletion of $0"),
+            dialog_open({ Title: cockpit.format(_("Please confirm deletion of $0"),
                                                 utils.mdraid_name(mdraid)),
-                          Teardown: usage.Teardown,
-                          Fields: [ ],
+                          Footer: TeardownMessage(usage),
                           Action: {
                               Title: _("Delete"),
                               Danger: _("Deleting a RAID device will erase all data on it."),
@@ -328,27 +320,29 @@ export class MDRaidDetails extends React.Component {
                 </div>
                 <div className="panel-body">
                     <table className="info-table-ct">
-                        <tr>
-                            <td>{_("storage", "Device")}</td>
-                            <td>{ block ? utils.decode_filename(block.PreferredDevice) : "-" }</td>
-                        </tr>
-                        <tr>
-                            <td>{_("storage", "UUID")}</td>
-                            <td>{ mdraid.UUID }</td>
-                        </tr>
-                        <tr>
-                            <td>{_("storage", "Capacity")}</td>
-                            <td>{ utils.fmt_size_long(mdraid.Size) }</td>
-                        </tr>
-                        <tr>
-                            <td>{_("storage", "RAID Level")}</td>
-                            <td>{ level }</td>
-                        </tr>
-                        { bitmap }
-                        <tr>
-                            <td>{_("storage", "State")}</td>
-                            <td>{ running ? _("Running") : _("Not running") }</td>
-                        </tr>
+                        <tbody>
+                            <tr>
+                                <td>{_("storage", "Device")}</td>
+                                <td>{ block ? utils.decode_filename(block.PreferredDevice) : "-" }</td>
+                            </tr>
+                            <tr>
+                                <td>{_("storage", "UUID")}</td>
+                                <td>{ mdraid.UUID }</td>
+                            </tr>
+                            <tr>
+                                <td>{_("storage", "Capacity")}</td>
+                                <td>{ utils.fmt_size_long(mdraid.Size) }</td>
+                            </tr>
+                            <tr>
+                                <td>{_("storage", "RAID Level")}</td>
+                                <td>{ level }</td>
+                            </tr>
+                            { bitmap }
+                            <tr>
+                                <td>{_("storage", "State")}</td>
+                                <td>{ running ? _("Running") : _("Not running") }</td>
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
             </div>

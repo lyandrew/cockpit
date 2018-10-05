@@ -20,7 +20,9 @@
 import cockpit from "cockpit";
 import React from "react";
 import sha1 from "js-sha1";
-import stable_stringify from "json-stable-stringify";
+import stable_stringify from "json-stable-stringify-without-jsonify";
+
+import * as python from "python.jsx";
 
 import {
     dialog_open,
@@ -92,21 +94,21 @@ function compute_sigkey_thps(adv) {
  */
 
 function clevis_add(block, pin, cfg, passphrase) {
-    // HACK - clevis 6 has only "bind luks", let's use that for now
     var dev = decode_filename(block.Device);
-    return cockpit.spawn([ "clevis", "bind", "luks", "-f", "-k", "-", "-d", dev, pin, JSON.stringify(cfg) ],
+    return cockpit.spawn([ "clevis", "luks", "bind", "-f", "-k", "-", "-d", dev, pin, JSON.stringify(cfg) ],
                          { superuser: true, err: "message" }).input(passphrase);
 }
 
 function clevis_remove(block, key) {
-    // HACK - only clevis version 10 brings "luks unbind"
+    // HACK - only clevis version 10 brings "luks unbind", but it is important to use it
+    // when it exists because our fallback can't deal with all cases, such as LUKSv2.
     // cryptsetup needs a terminal on stdin, even with -q or --key-file.
-    var script = 'cryptsetup luksKillSlot -q "$0" "$1" && luksmeta wipe -d "$0" -s "$1" -f';
+    var script = 'if which clevis-luks-unbind; then clevis-luks-unbind -d "$0" -s "$1" -f; else cryptsetup luksKillSlot -q "$0" "$1" && luksmeta wipe -d "$0" -s "$1" -f; fi';
     return cockpit.spawn([ "/bin/sh", "-c", script, decode_filename(block.Device), key.slot ],
                          { superuser: true, err: "message", pty: true });
 }
 
-function clevis_recover_passphrase(block) {
+export function clevis_recover_passphrase(block) {
     var dev = decode_filename(block.Device);
     return cockpit.script(clevis_luks_passphrase_sh, [ dev ],
                           { superuser: true, err: "message" })
@@ -158,31 +160,55 @@ function existing_passphrase_fields() {
 }
 
 function get_existing_passphrase(dlg, block) {
-    dlg.run(_("Unlocking disk..."),
-            clevis_recover_passphrase(block).then(passphrase => {
-                if (passphrase == "") {
-                    dlg.set_values({ needs_explicit_passphrase: true });
-                } else {
-                    dlg.set_values({ passphrase: passphrase });
-                }
-            })
-    );
+    let prom = clevis_recover_passphrase(block).then(passphrase => {
+        if (passphrase == "") {
+            dlg.set_values({ needs_explicit_passphrase: true });
+            return null;
+        } else {
+            return passphrase;
+        }
+    });
+
+    dlg.run(_("Unlocking disk..."), prom);
+    return prom;
+}
+
+function parse_url(url) {
+    // clevis-encrypt-tang defaults to "http://" (via curl), so we do the same here.
+    if (!RegExp("^[a-zA-Z]+://").test(url))
+        url = "http://" + url;
+    try {
+        return new URL(url);
+    } catch (e) {
+        if (e instanceof TypeError)
+            return null;
+        throw e;
+    }
+}
+
+function validate_url(url) {
+    if (url.length === 0)
+        return _("Address cannot be empty");
+    if (!parse_url(url))
+        return _("Address is not a valid URL");
 }
 
 function add_dialog(client, block) {
+    let recovered_passphrase;
+
     let dlg = dialog_open({ Title: _("Add Key"),
                             Fields: [
                                 SelectOneRadio("type", _("Key source"),
                                                { value: "tang",
-                                                 widest_title: _("Repeat passphrase")
-                                               },
-                                               [ { value: "luks-passphrase", title: _("Passphrase") },
-                                                   { value: "tang", title: _("Tang keyserver") }
-                                               ]),
+                                                 widest_title: _("Repeat passphrase"),
+                                                 choices: [
+                                                     { value: "luks-passphrase", title: _("Passphrase") },
+                                                     { value: "tang", title: _("Tang keyserver") }
+                                                 ]}),
                                 Skip("medskip"),
                                 PassInput("new_passphrase", _("New passphrase"),
                                           { visible: vals => vals.type == "luks-passphrase",
-                                            validate: val => !val.length && _("Passphrase cannot be empty")
+                                            validate: val => !val.length && _("Passphrase cannot be empty"),
                                           }),
                                 PassInput("new_passphrase2", _("Repeat passphrase"),
                                           { visible: vals => vals.type == "luks-passphrase",
@@ -194,25 +220,26 @@ function add_dialog(client, block) {
                                           }),
                                 TextInput("tang_url", _("Keyserver address"),
                                           { visible: vals => vals.type == "tang",
-                                            validate: val => !val.length && _("Address cannot be empty")
+                                            validate: validate_url
                                           })
                             ].concat(existing_passphrase_fields()),
                             Action: {
                                 Title: _("Add"),
                                 action: function (vals) {
+                                    let existing_passphrase = vals.passphrase || recovered_passphrase;
                                     if (vals.type == "luks-passphrase") {
-                                        return passphrase_add(block, vals.new_passphrase, vals.passphrase);
+                                        return passphrase_add(block, vals.new_passphrase, existing_passphrase);
                                     } else {
                                         return get_tang_adv(vals.tang_url).then(function (adv) {
                                             edit_tang_adv(client, block, null,
-                                                          vals.tang_url, adv, vals.passphrase);
+                                                          vals.tang_url, adv, existing_passphrase);
                                         });
                                     }
                                 }
                             }
     });
 
-    get_existing_passphrase(dlg, block);
+    get_existing_passphrase(dlg, block).then(pp => { recovered_passphrase = pp });
 }
 
 function edit_passphrase_dialog(block, key) {
@@ -237,24 +264,27 @@ function edit_passphrase_dialog(block, key) {
 }
 
 function edit_clevis_dialog(client, block, key) {
+    let recovered_passphrase;
+
     let dlg = dialog_open({ Title: _("Edit Tang keyserver"),
                             Fields: [
                                 TextInput("tang_url", _("Keyserver address"),
-                                          { validate: val => !val.length && _("Address cannot be empty"),
+                                          { validate: validate_url,
                                             value: key.url
                                           })
                             ].concat(existing_passphrase_fields()),
                             Action: {
                                 Title: _("Save"),
                                 action: function (vals) {
+                                    let existing_passphrase = vals.passphrase || recovered_passphrase;
                                     return get_tang_adv(vals.tang_url).then(adv => {
-                                        edit_tang_adv(client, block, key, vals.tang_url, adv, vals.passphrase);
+                                        edit_tang_adv(client, block, key, vals.tang_url, adv, existing_passphrase);
                                     });
                                 }
                             }
     });
 
-    get_existing_passphrase(dlg, block);
+    get_existing_passphrase(dlg, block).then(pp => { recovered_passphrase = pp });
 }
 
 class Revealer extends React.Component {
@@ -276,11 +306,9 @@ class Revealer extends React.Component {
 }
 
 function edit_tang_adv(client, block, key, url, adv, passphrase) {
-    var port_pos = url.lastIndexOf(":");
-    var host = (port_pos >= 0) ? url.substr(0, port_pos) : url;
-    var port = (port_pos >= 0) ? url.substr(port_pos + 1) : "";
-    var cmd = cockpit.format("ssh $0 tang-show-keys $1", host, port);
-    var cmd_alt = cockpit.format("ssh $0 \"curl -s localhost:$1/adv |\n  jose fmt -j- -g payload -y -o- |\n  jose jwk use -i- -r -u verify -o- |\n  jose jwk thp -i-\"", host, port);
+    var parsed = parse_url(url);
+    var cmd = cockpit.format("ssh $0 tang-show-keys $1", parsed.hostname, parsed.port);
+    var cmd_alt = cockpit.format("ssh $0 \"curl -s localhost:$1/adv |\n  jose fmt -j- -g payload -y -o- |\n  jose jwk use -i- -r -u verify -o- |\n  jose jwk thp -i-\"", parsed.hostname, parsed.port);
 
     var sigkey_thps = compute_sigkey_thps(tang_adv_payload(adv));
 
@@ -420,8 +448,7 @@ export class CryptoKeyslots extends React.Component {
             this.monitored_block = block;
             if (block) {
                 var dev = decode_filename(block.Device);
-                this.monitor_channel = cockpit.spawn([ "/usr/bin/python3", "--", "-", dev ],
-                                                     { superuser: true }).input(luksmeta_monitor_hack_py);
+                this.monitor_channel = python.spawn(luksmeta_monitor_hack_py, [ dev ], { superuser: true });
                 var buf = "";
                 this.monitor_channel.stream(output => {
                     var lines;
@@ -430,7 +457,7 @@ export class CryptoKeyslots extends React.Component {
                     buf = lines[lines.length - 1];
                     if (lines.length >= 2) {
                         const data = JSON.parse(lines[lines.length - 2]);
-                        this.setState({ slots: data.slots, luks_version: data.version });
+                        this.setState({ slots: data.slots, luks_version: data.version, max_slots: data.max_slots });
                     }
                 });
                 this.monitor_channel.fail(err => {
@@ -440,7 +467,7 @@ export class CryptoKeyslots extends React.Component {
         }
     }
 
-    componentDidUnmount() {
+    componentWillUnmount() {
         this.monitor_slots(null);
     }
 
@@ -453,8 +480,7 @@ export class CryptoKeyslots extends React.Component {
 
         this.monitor_slots(block);
 
-        if (this.state.luks_version > 1 ||
-            (this.state.slots == null && this.state.slot_error == null) ||
+        if ((this.state.slots == null && this.state.slot_error == null) ||
             this.state.slot_error == "not-found")
             return null;
 
@@ -498,7 +524,7 @@ export class CryptoKeyslots extends React.Component {
 
             var add_row = (slot, type, desc, edit, edit_excuse, remove) => {
                 rows.push(
-                    <tr>
+                    <tr key={slot}>
                         <td className="shrink key-type">{ type }</td>
                         <td>{ desc }</td>
                         <td className="shrink key-slot">{ cockpit.format(_("Slot $0"), slot) }</td>
@@ -546,7 +572,7 @@ export class CryptoKeyslots extends React.Component {
                 <div className="panel-heading">
                     <div className="pull-right">
                         <span className="key-slot-panel-remaining">
-                            { remaining ? cockpit.format(_("$0 slots remain"), remaining) : _("No available slots") }
+                            { remaining < 6 ? (remaining ? cockpit.format(_("$0 slots remain"), remaining) : _("No available slots")) : null }
                         </span>
                         { "\n" }
                         <StorageButton onClick={() => add_dialog(client, block)}
@@ -559,7 +585,7 @@ export class CryptoKeyslots extends React.Component {
                     {_("Keys")}
                 </div>
                 <table className="table">
-                    <tbody> { rows } </tbody>
+                    <tbody>{ rows }</tbody>
                 </table>
             </div>
         );

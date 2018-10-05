@@ -25,7 +25,6 @@ import {
     DELETE_UNLISTED_VMS,
     SET_HYPERVISOR_MAX_VCPU,
     SET_PROVIDER,
-    SET_REFRESH_INTERVAL,
     UNDEFINE_VM,
     UPDATE_ADD_VM,
     UPDATE_LIBVIRT_STATE,
@@ -94,10 +93,11 @@ export function deleteUiVm(vm) {
     };
 }
 
-export function deleteUnlistedVMs(connectionName, vmNames) {
+export function deleteUnlistedVMs(connectionName, vmNames, vmIds) {
     return {
         type: DELETE_UNLISTED_VMS,
         vmNames,
+        vmIds,
         connectionName,
     };
 }
@@ -124,17 +124,11 @@ export function setProvider(provider) {
     };
 }
 
-export function setRefreshInterval(refreshInterval) {
-    return {
-        type: SET_REFRESH_INTERVAL,
-        refreshInterval,
-    };
-}
-
-export function undefineVm(connectionName, name, transientOnly) {
+export function undefineVm({connectionName, name, id, transientOnly}) {
     return {
         type: UNDEFINE_VM,
         name,
+        id,
         connectionName,
         transientOnly,
     };
