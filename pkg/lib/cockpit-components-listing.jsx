@@ -46,6 +46,7 @@ require('./listing.less');
  * selected optional: true if the item is selected, can't be true if row has navigation or expansion
  * initiallyExpanded optional: the entry will be initially rendered as expanded, but then behaves normally
  * expandChanged optional: callback will be used if the row is either expanded or collapsed passing single `isExpanded` boolean argument
+ * extraClass optional: CSS class name(s) to be added to the main <div> of the component
  */
 var ListingRow = React.createClass({
     propTypes: {
@@ -60,11 +61,13 @@ var ListingRow = React.createClass({
         initiallyExpanded: React.PropTypes.bool,
         expandChanged: React.PropTypes.func,
         initiallyActiveTab: React.PropTypes.bool,
+        extraClass: React.PropTypes.string
     },
     getDefaultProps: function () {
         return {
             tabRenderers: [],
             navigateToItem: null,
+            extraClass: null,
         };
     },
     getInitialState: function() {
@@ -195,6 +198,10 @@ var ListingRow = React.createClass({
                 clickHandler = this.handleNavigateClick;
             else
                 clickHandler = this.handleExpandClick;
+        }
+
+        if (this.props.extraClass) {
+            listingItemClasses.push(this.props.extraClass);
         }
 
         var listingItem = (

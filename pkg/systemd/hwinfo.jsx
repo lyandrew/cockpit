@@ -73,16 +73,86 @@ class HardwareInfo extends React.Component {
 
     render() {
         let pci = null;
+        let memory = null;
+        let disks = null;
+        let raids = null;
+        var $ = require("jquery");
+        console.log('at hwinfo');
+        console.log(this.props.info.disk);
 
+        if (this.props.info.raid.length > 0) {
+            raids = (
+                <div id="raid_table">
+                    <Listing title={ _("RAIDS") } columnTitles={ [ _("ID"), _("Name"), _("Free Space"), _("Total Space"), _("Pool Members") ] }
+                             columnTitleClick={ index => this.setState({ sortBy: this.sortColumnFields[index] }) } >
+                        { this.props.info.raid.map(raid => <ListingRow columns={[ raid.id, raid.name, raid.free_space, raid.total_space, raid.pool_member ]} />) }
+                    </Listing>
+                </div>
+            );
+        }
+
+        if (this.props.info.disk.length > 0) {
+            disks = (
+                <div id="disks_table">
+                    <Listing title={ _("DISKS") } columnTitles={ [ _("ID"), _("Name"), _("System ID"), _("Disk Type"), _("Size") ] }
+                             columnTitleClick={ index => this.setState({ sortBy: this.sortColumnFields[index] }) } >
+                        { this.props.info.disk.map(disk => <ListingRow columns={[ disk.id, disk.name, disk.system_id, disk.disk_type, disk.block_size ]} />) }
+                    </Listing>
+                </div>
+            );
+        }
+        console.log("at render");
+        console.log(this.props.info.disk.length);
+        console.log(this.props.info.raid);
         if (this.props.info.pci.length > 0) {
             let sortedPci = this.props.info.pci.concat();
             sortedPci.sort((a, b) => a[this.state.sortBy].localeCompare(b[this.state.sortBy]));
 
             pci = (
-                <Listing title={ _("PCI") } columnTitles={ [ _("Class"), _("Model"), _("Vendor"), _("Slot") ] }
-                         columnTitleClick={ index => this.setState({ sortBy: this.sortColumnFields[index] }) } >
-                    { sortedPci.map(dev => <ListingRow columns={[ dev.cls, dev.model, dev.vendor, dev.slot ]} />) }
-                </Listing>
+                <div id="pci_table">
+                    <Listing title={ _("PCI") } columnTitles={ [ _("Class"), _("Model"), _("Vendor"), _("Slot") ] }
+                             columnTitleClick={ index => this.setState({ sortBy: this.sortColumnFields[index] }) } >
+                        { sortedPci.map(dev => <ListingRow columns={[ dev.cls, dev.model, dev.vendor, dev.slot ]} />) }
+                    </Listing>
+                </div>
+            );
+        }
+
+        if (this.props.info.memory.array.length > 0) {
+            // var empty_slots = 0;
+            // for (var i in this.props.info.memory) {
+            //    console.log(this.props.info.memory[i]);
+            //    if (this.props.info.memory[i].type_detail == "None") {
+            //        empty_slots += 1;
+            //    }
+            // }
+            var empty_span = null;
+            var display_all = function(e) {
+                $('#memory_table').addClass('show-all-slots');
+                $(this).hide();
+            };
+            var empty_slots = this.props.info.memory.empty_slots;
+            console.log("empty ");
+            console.log(empty_slots);
+            if (this.props.info.memory.empty_slots > 0) {
+                empty_span = (<span className="ct-hardware-memory-empty-count"> { empty_slots } empty slots <a href="#memory_table" id="view-all-slots" onClick={display_all}>view all</a></span>);
+            }
+            memory = (
+                <div id="memory_table">
+                    <Listing title={ _("Memory") } actions={ [ empty_span ] }
+                             columnTitles={ [ _("ID"), _("Description"), _("Vendor"), _("Model"), _("Size"), _("Clock Speed"), _("Serial") ] } >
+                        { this.props.info.memory.array.map(dimm => {
+                            var list = null;
+                            if (dimm.type_detail == "None") {
+                                empty_slots += 1;
+                                list = <ListingRow extraClass="ct-empty-slot" columns={[ dimm.locator, "Empty Slot", "", "", "", "", "" ]} />;
+                            } else {
+                                list = <ListingRow columns={[ dimm.locator, dimm.type_detail, dimm.manufacturer, dimm.part_number, dimm.size, dimm.speed, dimm.serial ]} />;
+                            }
+                            return list;
+                        })}
+                    </Listing>
+                </div>
             );
         }
 
@@ -96,6 +166,9 @@ class HardwareInfo extends React.Component {
                 <h2>{ _("System Information") }</h2>
                 <SystemInfo info={this.props.info.system} />
 
+                { raids }
+                { disks }
+                { memory }
                 { pci }
             </div>
         );
