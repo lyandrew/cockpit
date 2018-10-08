@@ -76,6 +76,7 @@ class HardwareInfo extends React.Component {
     render() {
         let pci = null;
         let memory = null;
+        let $ = require("jquery");
 
         if (this.props.info.pci.length > 0) {
             let sortedPci = this.props.info.pci.concat();
@@ -91,13 +92,43 @@ class HardwareInfo extends React.Component {
             );
         }
 
-        if (this.props.info.memory.length > 0) {
+        if (this.props.info.memory.array.length > 0) {
+            let empty_span = null;
+            let display_all = function(e) {
+                $('#memory_table').addClass('show-all-slots');
+                $('#view-all-slots').hide();
+            };
+            let empty_slots = this.props.info.memory.empty_slots;
+            if (this.props.info.memory.empty_slots > 0) {
+                empty_span = (
+                    <span className="ct-hardware-memory-empty-count">
+                        {empty_slots} empty slots
+                        <a
+                            href="#memory_table"
+                            id="view-all-slots"
+                            onClick={display_all}
+                        >
+                            view all
+                        </a>
+                    </span>
+                );
+            }
             memory = (
                 <div id="memory_table">
-                    <Listing title={ _("Memory") }
+                    <Listing title={ _("Memory") } actions={ [ empty_span ] }
                              columnTitles={ [ _("ID"), _("Description"), _("Vendor"), _("Model"), _("Size"), _("Clock Speed"), _("Serial") ] } >
-                        { this.props.info.memory.map(dimm => <ListingRow
-                            columns={[ dimm.locator, dimm.type_detail, dimm.manufacturer, dimm.part_number, dimm.size, dimm.speed, dimm.serial ]} />) }
+                        { this.props.info.memory.array.map(dimm => {
+                            var list = null;
+                            if (dimm.type_detail == "None") {
+                                empty_slots += 1;
+                                list = <ListingRow extraClass="ct-empty-slot"
+                                                   columns={[ dimm.locator, "Empty Slot", "", "", "", "", "" ]} />;
+                            } else {
+                                list = <ListingRow columns={[ dimm.locator, dimm.type_detail, dimm.manufacturer,
+                                    dimm.part_number, dimm.size, dimm.speed, dimm.serial ]} />;
+                            }
+                            return list;
+                        })}
                     </Listing>
                 </div>
             );

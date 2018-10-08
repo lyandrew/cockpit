@@ -44,6 +44,7 @@ import './listing.less';
  * selected optional: true if the item is selected, can't be true if row has navigation or expansion
  * initiallyExpanded optional: the entry will be initially rendered as expanded, but then behaves normally
  * expandChanged optional: callback will be used if the row is either expanded or collapsed passing single `isExpanded` boolean argument
+ * extraClass optional: CSS class name(s) to be added to the main <div> of the component
  */
 export class ListingRow extends React.Component {
     constructor(props) {
@@ -186,6 +187,11 @@ export class ListingRow extends React.Component {
                 clickHandler = this.handleExpandClick;
         }
 
+        let extraClass = this.props.extraClass;
+        if (extraClass) {
+            listingItemClasses.push(extraClass);
+        }
+
         let listingItem = (
             <tr data-row-id={ this.props.rowId }
                 className={ listingItemClasses.join(' ') }
@@ -262,6 +268,7 @@ export class ListingRow extends React.Component {
 ListingRow.defaultProps = {
     tabRenderers: [],
     navigateToItem: null,
+    extraClass: null
 };
 
 ListingRow.propTypes = {
@@ -275,7 +282,8 @@ ListingRow.propTypes = {
     selected: PropTypes.bool,
     initiallyExpanded: PropTypes.bool,
     expandChanged: PropTypes.func,
-    initiallyActiveTab: PropTypes.number
+    initiallyActiveTab: PropTypes.number,
+    extraClass: PropTypes.string
 };
 /* Implements a PatternFly 'List View' pattern
  * https://www.patternfly.org/list-view/

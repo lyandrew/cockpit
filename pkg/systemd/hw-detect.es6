@@ -55,7 +55,7 @@ function findPCI(udevdb, info) {
 }
 
 export default function detect() {
-    let info = { system: {}, pci: [], memory: [] };
+    let info = { system: {}, pci: [], memory: {} };
     var tasks = [];
 
     tasks.push(new Promise((resolve, reject) => {

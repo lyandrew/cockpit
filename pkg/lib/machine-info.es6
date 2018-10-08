@@ -220,8 +220,13 @@ function parseMemoryInfo(text) {
 
 function processMemory(info) {
     var memory_array = [];
+    var empty_slots = 0;
+
     for (let dimm in info) {
         let memory = info[dimm];
+        if (memory["Type Detail"] == "None") {
+            empty_slots += 1;
+        }
         memory_array.push({ locator: memory["Locator"],
                             manufacturer: memory["Manufacturer"],
                             type_detail: memory["Type Detail"],
@@ -230,7 +235,7 @@ function processMemory(info) {
                             part_number: memory["Part Number"],
                             serial: memory["Serial Number"] });
     }
-    return memory_array;
+    return {"array": memory_array, "empty_slots": empty_slots};
 }
 
 var memory_info_promises = { };
