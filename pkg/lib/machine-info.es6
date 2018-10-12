@@ -193,6 +193,7 @@ export function udev_info(address) {
 
 const memoryRE = /^([ \w]+): (.*)/;
 
+// Process the dmidecode text output and create a mapping of locator to dimm properties {"A1": {Array Handle: "0x1000"...,},...}
 function parseMemoryInfo(text) {
     var info = {};
     text.split("\n\n").map(paragraph => {
@@ -218,6 +219,7 @@ function parseMemoryInfo(text) {
     return processMemory(info);
 }
 
+// Select the useful properties to display
 function processMemory(info) {
     var memory_array = [];
     var empty_slots = 0;
@@ -240,8 +242,8 @@ function processMemory(info) {
 
 var memory_info_promises = { };
 
-// Calls dmidecode to gather memory information. Returns an list of memory object.
-// [{"locator":"DIMM A","manufacturer":...},{"locator":"DIMM B",...},...]
+// Calls dmidecode to gather memory information. Returns array of properties mapping and number of empty slots for preprocessing.
+// Return {"array": memory, "empty_slots": #}
 export function memory_info(address) {
     var pr = memory_info_promises[address];
     var dfd;
