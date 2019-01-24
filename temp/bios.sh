@@ -10,3 +10,4 @@
 #/opt/dell/srvadmin/bin/idracadm7 -r 100.71.102.8 -u root -p calvin --nocertwarn get Bios.SysInformation
 #/opt/dell/srvadmin/bin/idracadm7 -r 100.71.102.8 -u root -p calvin --nocertwarn get Bios.SysProfileSettings
 #/opt/dell/srvadmin/bin/idracadm7 -r 100.71.102.8 -u root -p calvin --nocertwarn get Bios.SysSecurity
+
