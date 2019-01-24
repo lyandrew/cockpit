@@ -3,11 +3,17 @@ $ ./configure
 $ ./autogen
 $ make
 
+cp cockpit/temp/* /tmp/
+# make sure the .sh files have executive permissions
+
+Dev Notes:
+
+A lot of the tasks right now (to get data output (dmidecode, racadm)) are placed in bash files that are runnable. So these files are run by cockpit. It is possible to call these cmdline directly thru cockpit.
 
 
 
 
-These 4 files are edited to add the RAID/DIMM/BIOS information. All of which can be added by itself.
+These 4 files are edited to add the RAID/DIMM/BIOS information.
 
 
 pkg/lib/cockpit-components-listing.jsx
@@ -35,6 +41,11 @@ The important stuff to note here is memory_info.
                     resolve();
                 });
     }));
+
+
+
+
+
 
 
 
@@ -84,6 +95,10 @@ function processMemory(info) {
 
 
 Note that parseMemoryInfo is a function to change the data into an output you want (ie. from line of text to json readable).
+
+
+
+
 
 
 
