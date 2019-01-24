@@ -255,9 +255,24 @@ export class ListingRow extends React.Component {
                 </tbody>
             );
         } else {
+            let extraRow = this.props.extraRow;
+            let extraListingRow;
+            if (extraRow) {
+                extraListingRow = (
+                    <tr >
+                        <td colSpan="7">
+                            <pre>
+                                {this.props.extraRow}
+                            </pre>
+                        </td>
+                    </tr>
+                );
+            }
+
             return (
                 <tbody>
                     {listingItem}
+                    {extraListingRow}
                     <tr className="listing-ct-panel" />
                 </tbody>
             );
@@ -268,7 +283,8 @@ export class ListingRow extends React.Component {
 ListingRow.defaultProps = {
     tabRenderers: [],
     navigateToItem: null,
-    extraClass: null
+    extraClass: null,
+    extraRow: null
 };
 
 ListingRow.propTypes = {
@@ -283,7 +299,8 @@ ListingRow.propTypes = {
     initiallyExpanded: PropTypes.bool,
     expandChanged: PropTypes.func,
     initiallyActiveTab: PropTypes.number,
-    extraClass: PropTypes.string
+    extraClass: PropTypes.string,
+    extraRow: PropTypes.string
 };
 /* Implements a PatternFly 'List View' pattern
  * https://www.patternfly.org/list-view/

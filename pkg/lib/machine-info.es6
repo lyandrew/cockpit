@@ -1,3 +1,4 @@
+/* eslint-disable */
 /*
  * This file is part of Cockpit.
  *
@@ -251,8 +252,102 @@ export function memory_info(address) {
     if (!pr) {
         dfd = cockpit.defer();
         memory_info_promises[address] = pr = dfd.promise();
-        cockpit.spawn(["/usr/sbin/dmidecode", "-t", "memory"], { environ: ["LC_ALL=C"], err: "message", superuser: "try" })
+        // cockpit.spawn(["/usr/sbin/dmidecode", "-t", "memory"], { environ: ["LC_ALL=C"], err: "message", superuser: "try" })
+        cockpit.spawn(["cat", "/tmp/dmid-nvdimm.txt"], { environ: ["LC_ALL=C"], err: "message", superuser: "try" })
                 .done(output => dfd.resolve(parseMemoryInfo(output)))
+                .fail(exception => dfd.reject(exception.message));
+    }
+    return pr;
+}
+
+function parseNdctl(text) {
+    var nd_dict = {};
+
+    var obj = JSON.parse(text);
+    for ( var i=0; i < obj.length; i++) {
+        var id = obj[i]["id"];
+        id = id.toUpperCase();
+        var token = id.split('-');
+        nd_dict[token[3]] = obj[i];
+    }
+    return nd_dict;
+}
+
+var ndctl_info_promises = {};
+
+export function ndctl_info(address) {
+    var pr = ndctl_info_promises[address];
+    var dfd;
+
+    if (!pr) {
+        dfd = cockpit.defer();
+        ndctl_info_promises[address] = pr = dfd.promise();
+        cockpit.spawn(["cat", "/tmp/ndctl-list.txt"], { environ: ["LC_ALL=C"], err: "message", superuser: "try" })
+                .done(output => dfd.resolve(parseNdctl(output)))
+                .fail(exception => dfd.reject(exception.message));
+    }
+    return pr;
+}
+
+function processDisks(text) {
+    var text1 = [{'47N007A': [{'status': 2, 'name': 'Disk 1 TOSHIBA AL13SXB300N     ', 'size_bytes': 299439751168, 'block_size': 512, 'rpm': 1, 'id': '94E0A069F92A'}, {'status': 2, 'name': 'Disk 3 TOSHIBA AL13SXB300N     ', 'size_bytes': 299439751168, 'block_size': 512, 'rpm': 1, 'id': '9430A0BAF92A'}, {'status': 2, 'name': 'Disk 0 TOSHIBA AL13SXB300N     ', 'size_bytes': 299439751168, 'block_size': 512, 'rpm': 1, 'id': '9480A012F92A'}, {'status': 2, 'name': 'Disk 2 TOSHIBA AL13SXB300N     ', 'size_bytes': 299439751168, 'block_size': 512, 'rpm': 1, 'id': '94E0A05LF92A'}]}, {'47N007A:DG0': {'pool_member': '9480A012F92A 94E0A069F92A 94E0A05LF92A 9430A0BAF92A', 'total_space': 898319253504, 'free_space': 0, 'id': '47N007A:DG0', 'name': 'RAID5 Disk Group 0'}}];
+    var disks = text1[0];
+    var raids = text1[1];
+    var raid_arr = [];
+    function formatBytes(bytes) {
+        if(bytes < 1024) return bytes + " Bytes";
+        else if(bytes < 1048576) return(bytes / 1024).toFixed(3) + " KB";
+        else if(bytes < 1073741824) return(bytes / 1048576).toFixed(3) + " MB";
+        else return(bytes / 1073741824).toFixed(3) + " GB";
+    };
+    for (let i in raids) {
+        raids[i]['total_space'] = formatBytes(raids[i]['total_space']);
+        raid_arr.push(raids[i]);
+        console.log(raids[i]);
+    }
+    for (let key in disks) {
+        for (let i in disks[key]) {
+            disks[key][i]['size_bytes'] = formatBytes(disks[key][i]['size_bytes']);
+        }
+    }
+    console.log(disks);
+    console.log('returning proccess disks');
+    var res = [];
+    res.push(disks);
+    res.push(raid_arr);
+    return res;
+}
+var disk_info_promises = {};
+export function disk_info(address) {
+    var pr = disk_info_promises[address];
+    var dfd;
+    if (!pr) {
+        dfd = cockpit.defer();
+        disk_info_promises[address] = pr = dfd.promise();
+        cockpit.spawn(["/tmp/disks.sh"], { environ: ["LC_ALL=C"], err: "message", superuser: "try" })
+                .done(output => dfd.resolve(processDisks(output)))
+                .fail(exception => dfd.reject(exception.message));
+    }
+    return pr;
+}
+
+const biosRE = /^#?(.*)=(.*)/;
+
+function processBios1(text) {
+    var obj = JSON.parse(text);
+    console.log(obj["Attributes"]);
+    let settings = obj["Attributes"];
+    return settings;
+}
+var bios_info_promises = {};
+export function bios_info(address) {
+    var pr = bios_info_promises[address];
+    var dfd;
+    if (!pr) {
+        dfd = cockpit.defer();
+        bios_info_promises[address] = pr = dfd.promise();
+        cockpit.spawn(["/tmp/bios.sh"], { environ: ["LC_ALL=C"], err: "message", superuser: "try" })
+                .done(output => dfd.resolve(processBios1(output)))
                 .fail(exception => dfd.reject(exception.message));
     }
     return pr;
